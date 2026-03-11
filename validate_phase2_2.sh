@@ -108,7 +108,7 @@ if [ -n "$BACKEND_CONTAINER" ]; then
     for PROMPT_FILE in "services/ai/prompts/triage.txt" "services/ai/prompts/chat_system.txt"; do
         EXISTS=$(docker exec "$BACKEND_CONTAINER" test -f "/app/backend/${PROMPT_FILE}" && echo "yes" || echo "no")
         if [ "$EXISTS" = "yes" ]; then
-            SIZE=$(docker exec "$BACKEND_CONTAINER" wc -c < "/app/backend/${PROMPT_FILE}" 2>/dev/null || echo "0")
+            SIZE=$(docker exec "$BACKEND_CONTAINER" sh -c "wc -c < /app/backend/${PROMPT_FILE}" 2>/dev/null || echo "0")
             pass_test "${PROMPT_FILE} exists (${SIZE} bytes)"
         else
             fail_test "${PROMPT_FILE} not found in container"
@@ -238,7 +238,7 @@ async def test():
         result = await rag_query(
             query='What MITRE techniques are associated with ransomware attacks?',
             system_prompt='You are a security analyst. Answer the question using the provided context.',
-            model='gpt-4o-mini',
+            model='gpt-4.1',
             max_tokens=500,
         )
         has_text = 'response_text' in result

@@ -23,9 +23,9 @@ from config import settings
 logger = logging.getLogger("accc.openai")
 
 OPENAI_BASE_URL = "https://api.openai.com/v1"
-EMBEDDING_MODEL = "text-embedding-3-small"
-PRIMARY_MODEL = "gpt-4o"
-FAST_MODEL = "gpt-4o-mini"
+EMBEDDING_MODEL = settings.OPENAI_EMBEDDING_MODEL
+PRIMARY_MODEL = settings.OPENAI_PRIMARY_MODEL
+FAST_MODEL = settings.OPENAI_FAST_MODEL
 
 
 def _headers() -> dict:
@@ -99,7 +99,7 @@ async def chat_completion(
 
     Args:
         messages: List of {role, content} dicts
-        model: Model ID (default: gpt-4o)
+        model: Model ID (default: gpt-4.1)
         temperature: Sampling temperature
         max_tokens: Max response tokens
         response_format: Optional {"type": "json_object"} for JSON mode

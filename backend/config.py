@@ -14,10 +14,17 @@ class Settings(BaseSettings):
     """Application settings read from environment variables."""
 
     # --- Required ---
-    OPENAI_API_KEY: str = Field(..., description="OpenAI API key for GPT-4o + embeddings")
+    OPENAI_API_KEY: str = Field(..., description="OpenAI API key for chat + embeddings")   
     POSTGRES_PASSWORD: str = Field(..., description="PostgreSQL password")
     JWT_SECRET: str = Field(..., description="Secret key for JWT signing")
 
+
+    # --- OpenAI Models ---
+    OPENAI_PRIMARY_MODEL: str = Field(default="gpt-4.1")
+    OPENAI_FAST_MODEL: str = Field(default="gpt-4.1")
+    OPENAI_EMBEDDING_MODEL: str = Field(default="text-embedding-3-small")
+
+    
     # --- PostgreSQL ---
     POSTGRES_USER: str = Field(default="accc")
     POSTGRES_DB: str = Field(default="accc_db")
