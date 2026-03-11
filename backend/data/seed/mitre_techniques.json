@@ -1,0 +1,394 @@
+[
+  {
+    "id": "T1595",
+    "name": "Active Scanning",
+    "tactic": "Reconnaissance",
+    "description": "Adversaries scan victim infrastructure to identify targets for exploitation",
+    "detection": "Monitor for unusual network scanning patterns, large volumes of ICMP/TCP SYN packets",
+    "mitigation": "Network segmentation, rate limiting, honeypots to detect scanners"
+  },
+  {
+    "id": "T1592",
+    "name": "Gather Victim Host Info",
+    "tactic": "Reconnaissance",
+    "description": "Collect information about victim hosts including hardware, software, configurations",
+    "detection": "Monitor public sources for organizational information disclosure",
+    "mitigation": "Limit publicly available system information, information security awareness"
+  },
+  {
+    "id": "T1589",
+    "name": "Gather Victim Identity Info",
+    "tactic": "Reconnaissance",
+    "description": "Gather identity information about victims including credentials and PII",
+    "detection": "Monitor for scraping of employee directories and social platforms",
+    "mitigation": "Enforce least privilege, monitor credential exposure on paste sites"
+  },
+  {
+    "id": "T1583",
+    "name": "Acquire Infrastructure",
+    "tactic": "Resource Development",
+    "description": "Adversaries buy, lease, or rent infrastructure for staging operations",
+    "detection": "Monitor for registration of new domains that mimic legitimate organizations",
+    "mitigation": "Threat intelligence feeds monitoring for lookalike domains"
+  },
+  {
+    "id": "T1587",
+    "name": "Develop Capabilities",
+    "tactic": "Resource Development",
+    "description": "Build custom tools or malware to use in operations",
+    "detection": "Difficult to detect; look for novel malware signatures and C2 patterns",
+    "mitigation": "Endpoint detection, behavioral analysis"
+  },
+  {
+    "id": "T1190",
+    "name": "Exploit Public-Facing Application",
+    "tactic": "Initial Access",
+    "description": "Exploit weakness in internet-facing application to gain access",
+    "detection": "Web application firewall logs, IDS alerts, unusual process spawning from web services",
+    "mitigation": "Patch management, WAF, vulnerability scanning, input validation"
+  },
+  {
+    "id": "T1566",
+    "name": "Phishing",
+    "tactic": "Initial Access",
+    "description": "Send malicious emails to gain access to victim systems",
+    "detection": "Email gateway analysis, user reporting, link analysis",
+    "mitigation": "Email filtering, user training, MFA, attachment sandboxing"
+  },
+  {
+    "id": "T1078",
+    "name": "Valid Accounts",
+    "tactic": "Initial Access",
+    "description": "Use legitimate credentials to gain initial access",
+    "detection": "Impossible travel alerts, off-hours logins, new geolocations",
+    "mitigation": "MFA, privileged access management, password policies"
+  },
+  {
+    "id": "T1133",
+    "name": "External Remote Services",
+    "tactic": "Initial Access",
+    "description": "Leverage external remote services like VPN, Citrix to access systems",
+    "detection": "Monitor authentication logs for external remote service usage",
+    "mitigation": "MFA on all remote services, allowlisted IPs"
+  },
+  {
+    "id": "T1200",
+    "name": "Hardware Additions",
+    "tactic": "Initial Access",
+    "description": "Introduce malicious hardware such as network implants",
+    "detection": "Network device discovery, MAC address monitoring",
+    "mitigation": "Physical security controls, USB port restrictions"
+  },
+  {
+    "id": "T1059",
+    "name": "Command and Scripting Interpreter",
+    "tactic": "Execution",
+    "description": "Abuse command-line interfaces to execute commands",
+    "detection": "Process creation logs showing powershell.exe, cmd.exe, bash with suspicious args",
+    "mitigation": "Application allowlisting, PowerShell constrained language mode"
+  },
+  {
+    "id": "T1047",
+    "name": "Windows Management Instrumentation",
+    "tactic": "Execution",
+    "description": "Use WMI for lateral movement and execution",
+    "detection": "WMI activity logs, unusual WMI process creation",
+    "mitigation": "WMI activity auditing, restrict WMI access"
+  },
+  {
+    "id": "T1053",
+    "name": "Scheduled Task/Job",
+    "tactic": "Execution",
+    "description": "Abuse task scheduling to execute malicious code",
+    "detection": "Monitor scheduled task creation/modification events",
+    "mitigation": "Audit scheduled tasks, restrict task creation permissions"
+  },
+  {
+    "id": "T1204",
+    "name": "User Execution",
+    "tactic": "Execution",
+    "description": "Rely on user to execute malicious file or link",
+    "detection": "Endpoint detection of suspicious file execution, macro execution",
+    "mitigation": "User training, disable macros, file extension filtering"
+  },
+  {
+    "id": "T1547",
+    "name": "Boot or Logon Autostart Execution",
+    "tactic": "Persistence",
+    "description": "Configure malicious programs to run at system boot or user logon",
+    "detection": "Monitor registry run keys, startup folder modifications",
+    "mitigation": "Endpoint detection, registry monitoring, application control"
+  },
+  {
+    "id": "T1098",
+    "name": "Account Manipulation",
+    "tactic": "Persistence",
+    "description": "Manipulate accounts to maintain access including adding credentials",
+    "detection": "Monitor account changes, new accounts, privilege changes",
+    "mitigation": "Privileged access management, account change alerting"
+  },
+  {
+    "id": "T1543",
+    "name": "Create or Modify System Process",
+    "tactic": "Persistence",
+    "description": "Create or modify system-level processes to execute malicious code",
+    "detection": "Monitor service creation and modification events",
+    "mitigation": "Audit system service changes, application control"
+  },
+  {
+    "id": "T1505",
+    "name": "Server Software Component",
+    "tactic": "Persistence",
+    "description": "Install server software components such as web shells",
+    "detection": "Monitor web server files for unexpected changes, web shell detection",
+    "mitigation": "File integrity monitoring, web server hardening"
+  },
+  {
+    "id": "T1548",
+    "name": "Abuse Elevation Control Mechanism",
+    "tactic": "Privilege Escalation",
+    "description": "Bypass UAC or sudo to elevate privileges",
+    "detection": "UAC bypass attempts, sudo log monitoring",
+    "mitigation": "Restrict UAC override, monitor privileged process creation"
+  },
+  {
+    "id": "T1068",
+    "name": "Exploitation for Privilege Escalation",
+    "tactic": "Privilege Escalation",
+    "description": "Exploit software vulnerabilities for privilege escalation",
+    "detection": "Kernel exploit detection, privilege escalation alerts",
+    "mitigation": "Patch management, exploit mitigation (DEP, ASLR)"
+  },
+  {
+    "id": "T1134",
+    "name": "Access Token Manipulation",
+    "tactic": "Privilege Escalation",
+    "description": "Manipulate access tokens to escalate privileges or evade detection",
+    "detection": "Token creation and impersonation events",
+    "mitigation": "Privileged access management, least privilege"
+  },
+  {
+    "id": "T1562",
+    "name": "Impair Defenses",
+    "tactic": "Defense Evasion",
+    "description": "Disable or tamper with security tools to evade detection",
+    "detection": "Security tool status monitoring, SIEM alerts on AV/EDR disablement",
+    "mitigation": "Tamper protection on security tools, alert on defense disablement"
+  },
+  {
+    "id": "T1070",
+    "name": "Indicator Removal",
+    "tactic": "Defense Evasion",
+    "description": "Delete or alter artifacts to cover tracks",
+    "detection": "File deletion events, log clearing alerts, event log monitoring",
+    "mitigation": "Centralized logging, immutable log storage"
+  },
+  {
+    "id": "T1036",
+    "name": "Masquerading",
+    "tactic": "Defense Evasion",
+    "description": "Manipulate features to make malicious artifacts look legitimate",
+    "detection": "Process name anomaly detection, file hash verification",
+    "mitigation": "Application allowlisting, code signing"
+  },
+  {
+    "id": "T1027",
+    "name": "Obfuscated Files or Information",
+    "tactic": "Defense Evasion",
+    "description": "Encrypt, encode, or obfuscate files to make analysis harder",
+    "detection": "Entropy analysis, deobfuscation tools, AMSI scanning",
+    "mitigation": "Script block logging, AMSI integration"
+  },
+  {
+    "id": "T1110",
+    "name": "Brute Force",
+    "tactic": "Credential Access",
+    "description": "Try many credentials to gain unauthorized access",
+    "detection": "Authentication failure rate monitoring, lockout alerts",
+    "mitigation": "Account lockout, MFA, rate limiting"
+  },
+  {
+    "id": "T1003",
+    "name": "OS Credential Dumping",
+    "tactic": "Credential Access",
+    "description": "Dump credentials from OS or software",
+    "detection": "LSASS access monitoring, credential dumping tool signatures",
+    "mitigation": "Credential Guard, restricted LSASS access"
+  },
+  {
+    "id": "T1555",
+    "name": "Credentials from Password Stores",
+    "tactic": "Credential Access",
+    "description": "Collect credentials from password managers or browsers",
+    "detection": "Browser credential store access, password manager process monitoring",
+    "mitigation": "Endpoint protection, encrypted credential stores"
+  },
+  {
+    "id": "T1539",
+    "name": "Steal Web Session Cookie",
+    "tactic": "Credential Access",
+    "description": "Steal web session cookies to bypass authentication",
+    "detection": "Cookie theft patterns, impossible travel detection",
+    "mitigation": "Short session timeouts, secure/httponly cookie flags"
+  },
+  {
+    "id": "T1087",
+    "name": "Account Discovery",
+    "tactic": "Discovery",
+    "description": "Enumerate user accounts to identify targets",
+    "detection": "net user, Get-ADUser, LDAP enumeration logs",
+    "mitigation": "Limit domain enumeration, audit LDAP queries"
+  },
+  {
+    "id": "T1046",
+    "name": "Network Service Discovery",
+    "tactic": "Discovery",
+    "description": "Scan network to identify services running on hosts",
+    "detection": "Network scanning signatures, port scan detection",
+    "mitigation": "Network segmentation, firewall rules, honeypots"
+  },
+  {
+    "id": "T1082",
+    "name": "System Information Discovery",
+    "tactic": "Discovery",
+    "description": "Gather details about the system configuration",
+    "detection": "Unusual systeminfo, uname, hostname command execution",
+    "mitigation": "Application control, behavioral monitoring"
+  },
+  {
+    "id": "T1083",
+    "name": "File and Directory Discovery",
+    "tactic": "Discovery",
+    "description": "Enumerate files and directories to identify targets",
+    "detection": "Mass file enumeration, dir/ls commands in unusual contexts",
+    "mitigation": "Least privilege, file access auditing"
+  },
+  {
+    "id": "T1021",
+    "name": "Remote Services",
+    "tactic": "Lateral Movement",
+    "description": "Use valid accounts to log into remote services for lateral movement",
+    "detection": "Unusual remote login patterns, east-west traffic monitoring",
+    "mitigation": "MFA on internal systems, network segmentation"
+  },
+  {
+    "id": "T1550",
+    "name": "Use Alternate Authentication Material",
+    "tactic": "Lateral Movement",
+    "description": "Use alternate credentials like pass-the-hash to move laterally",
+    "detection": "Abnormal NTLM authentication, unusual Kerberos ticket activity",
+    "mitigation": "Credential Guard, network monitoring for lateral movement"
+  },
+  {
+    "id": "T1080",
+    "name": "Taint Shared Content",
+    "tactic": "Lateral Movement",
+    "description": "Deliver malicious payloads via shared network resources",
+    "detection": "Unusual file writes to shared drives, DFS monitoring",
+    "mitigation": "Shared drive permissions, file integrity monitoring"
+  },
+  {
+    "id": "T1114",
+    "name": "Email Collection",
+    "tactic": "Collection",
+    "description": "Collect email content for information gathering or exfiltration",
+    "detection": "Mass email access patterns, unusual mail protocol activity",
+    "mitigation": "Email DLP, access auditing, MFA on mail"
+  },
+  {
+    "id": "T1074",
+    "name": "Data Staged",
+    "tactic": "Collection",
+    "description": "Stage collected data in a central location before exfiltration",
+    "detection": "Large data staging in temp directories, archive creation",
+    "mitigation": "DLP, file access monitoring, endpoint detection"
+  },
+  {
+    "id": "T1560",
+    "name": "Archive Collected Data",
+    "tactic": "Collection",
+    "description": "Archive data using compression or encryption prior to exfiltration",
+    "detection": "Unusual archive creation, encrypted archive activity",
+    "mitigation": "File creation monitoring, DLP"
+  },
+  {
+    "id": "T1071",
+    "name": "Application Layer Protocol",
+    "tactic": "Command and Control",
+    "description": "Use application layer protocols for C2 communication",
+    "detection": "Unusual DNS, HTTP/S patterns, beaconing detection",
+    "mitigation": "DNS filtering, SSL inspection, network behavioral analysis"
+  },
+  {
+    "id": "T1572",
+    "name": "Protocol Tunneling",
+    "tactic": "Command and Control",
+    "description": "Tunnel C2 traffic over legitimate protocols",
+    "detection": "DNS tunneling detection, unusual ICMP patterns",
+    "mitigation": "Deep packet inspection, protocol anomaly detection"
+  },
+  {
+    "id": "T1105",
+    "name": "Ingress Tool Transfer",
+    "tactic": "Command and Control",
+    "description": "Transfer tools or files from external system to victim network",
+    "detection": "Unusual outbound/inbound file transfers, BITS jobs",
+    "mitigation": "Egress filtering, application control"
+  },
+  {
+    "id": "T1041",
+    "name": "Exfiltration Over C2 Channel",
+    "tactic": "Exfiltration",
+    "description": "Exfiltrate data over existing C2 channel",
+    "detection": "Unusual data volumes over established C2 channels",
+    "mitigation": "Network monitoring, DLP, egress filtering"
+  },
+  {
+    "id": "T1048",
+    "name": "Exfiltration Over Alternative Protocol",
+    "tactic": "Exfiltration",
+    "description": "Exfiltrate using a protocol different from C2 channel",
+    "detection": "DNS, ICMP, HTTP exfiltration signatures",
+    "mitigation": "Protocol allowlisting, DLP, cloud app security"
+  },
+  {
+    "id": "T1567",
+    "name": "Exfiltration Over Web Service",
+    "tactic": "Exfiltration",
+    "description": "Use external web services for exfiltration",
+    "detection": "Unusual uploads to cloud storage services, Pastebin activity",
+    "mitigation": "Cloud access security broker (CASB), web filtering"
+  },
+  {
+    "id": "T1486",
+    "name": "Data Encrypted for Impact",
+    "tactic": "Impact",
+    "description": "Encrypt data on victim systems to interrupt availability \u2014 ransomware",
+    "detection": "Mass file encryption events, unusual shadow copy deletion",
+    "mitigation": "Backup strategy, endpoint detection, behavioral AI"
+  },
+  {
+    "id": "T1490",
+    "name": "Inhibit System Recovery",
+    "tactic": "Impact",
+    "description": "Delete backups and shadow copies to prevent recovery",
+    "detection": "Volume shadow copy deletion, backup software interference",
+    "mitigation": "Immutable backups, tamper-protected recovery"
+  },
+  {
+    "id": "T1485",
+    "name": "Data Destruction",
+    "tactic": "Impact",
+    "description": "Destroy data and files to interrupt availability",
+    "detection": "Mass file deletion, disk wipe signatures",
+    "mitigation": "Immutable storage, data backup policies"
+  },
+  {
+    "id": "T1499",
+    "name": "Endpoint Denial of Service",
+    "tactic": "Impact",
+    "description": "Perform DoS attacks to degrade or block availability",
+    "detection": "CPU/memory resource exhaustion, process flooding",
+    "mitigation": "Resource limits, endpoint protection"
+  }
+]

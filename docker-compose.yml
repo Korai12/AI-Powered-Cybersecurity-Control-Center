@@ -1,0 +1,188 @@
+version: "3.9"
+
+# ============================================================
+# AI-Powered Cybersecurity Control Center (ACCC)
+# docker-compose.yml — All 7 services with strict health checks
+# Cold-start sequence: postgres+redis+chromadb → init_db → backend → frontend+log_generator
+# Expected total cold-start: 55–75 seconds
+# ============================================================
+
+services:
+
+  # ── Stage 1: Infrastructure (parallel) ──────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-accc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-accc_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - accc_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-accc} -d ${POSTGRES_DB:-accc_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - accc_net
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - accc_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      - accc_net
+
+  chromadb:
+   build:
+    context: .
+    dockerfile: chromadb.Dockerfile
+   restart: unless-stopped
+   ports:
+    - "8001:8000"
+   volumes:
+    - accc_chroma_data:/chroma/chroma
+   environment:
+    - IS_PERSISTENT=TRUE
+    - ANONYMIZED_TELEMETRY=FALSE
+   healthcheck:
+    test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v2/heartbeat || exit 1"]
+    interval: 5s
+    timeout: 5s
+    retries: 10
+    start_period: 20s
+   networks:
+    - accc_net
+
+  # ── Stage 2: Initialization (one-shot) ──────────────────────────────────────
+
+  init_db:
+    build:
+      context: .
+      dockerfile: init_db/Dockerfile
+    env_file: .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-accc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-accc_db}
+      CHROMADB_HOST: ${CHROMADB_HOST:-chromadb}
+      CHROMADB_PORT: ${CHROMADB_PORT:-8000}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-accc}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-accc_db}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - accc_net
+
+  # ── Stage 3: Application ─────────────────────────────────────────────────────
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-accc}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-accc_db}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      CHROMADB_HOST: ${CHROMADB_HOST:-chromadb}
+      CHROMADB_PORT: ${CHROMADB_PORT:-8000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      GENERATOR_URL: http://log_generator:8080
+    ports:
+      - "8000:8000"
+    depends_on:
+      init_db:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - accc_net
+
+  # ── Stage 4: Clients (parallel) ──────────────────────────────────────────────
+
+  log_generator:
+    build:
+      context: ./log_generator
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      BACKEND_URL: http://backend:8000
+      LOG_GENERATOR_RATE: ${LOG_GENERATOR_RATE:-30}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    ports:
+      - "8080:8080"
+    networks:
+      - accc_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - accc_net
+
+# ── Named Volumes (data persists across restarts) ─────────────────────────────
+
+volumes:
+  accc_postgres_data:
+    driver: local
+  accc_redis_data:
+    driver: local
+  accc_chroma_data:
+    driver: local
+
+# ── Network ───────────────────────────────────────────────────────────────────
+
+networks:
+  accc_net:
+    driver: bridge

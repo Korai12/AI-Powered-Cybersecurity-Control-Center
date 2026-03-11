@@ -1,0 +1,505 @@
+[
+  {
+    "id": "TI-001",
+    "name": "APT29 (Cozy Bear)",
+    "type": "threat_actor",
+    "nation_state": "Russia",
+    "motivation": "Espionage",
+    "ttps": [
+      "T1566",
+      "T1078",
+      "T1021",
+      "T1041"
+    ],
+    "description": "Russian state-sponsored group targeting government and critical infrastructure. Known for SolarWinds supply chain attack.",
+    "ioc_patterns": [
+      "cobalt strike beacons",
+      "custom malware SUNBURST",
+      "unusual WMI activity"
+    ],
+    "confidence": 0.95
+  },
+  {
+    "id": "TI-002",
+    "name": "APT28 (Fancy Bear)",
+    "type": "threat_actor",
+    "nation_state": "Russia",
+    "motivation": "Espionage",
+    "ttps": [
+      "T1566",
+      "T1059",
+      "T1003",
+      "T1070"
+    ],
+    "description": "GRU-attributed group known for targeting political organizations and elections worldwide.",
+    "ioc_patterns": [
+      "X-Agent malware",
+      "spear phishing with Office macros",
+      "credential harvesting portals"
+    ],
+    "confidence": 0.92
+  },
+  {
+    "id": "TI-003",
+    "name": "Lazarus Group",
+    "type": "threat_actor",
+    "nation_state": "North Korea",
+    "motivation": "Financial/Espionage",
+    "ttps": [
+      "T1190",
+      "T1059",
+      "T1486",
+      "T1041"
+    ],
+    "description": "DPRK-affiliated group responsible for WannaCry ransomware and financial institution heists.",
+    "ioc_patterns": [
+      "WannaCry ransomware",
+      "SWIFT transaction manipulation",
+      "destructive wipers"
+    ],
+    "confidence": 0.9
+  },
+  {
+    "id": "TI-004",
+    "name": "FIN7",
+    "type": "threat_actor",
+    "nation_state": "Unknown",
+    "motivation": "Financial",
+    "ttps": [
+      "T1566",
+      "T1204",
+      "T1056",
+      "T1041"
+    ],
+    "description": "Financially motivated group targeting hospitality, restaurant, and retail sectors for payment card theft.",
+    "ioc_patterns": [
+      "Carbanak malware",
+      "spear phishing with restaurant-themed lures",
+      "POS malware"
+    ],
+    "confidence": 0.88
+  },
+  {
+    "id": "TI-005",
+    "name": "REvil (Sodinokibi)",
+    "type": "ransomware_group",
+    "motivation": "Financial",
+    "ttps": [
+      "T1190",
+      "T1078",
+      "T1486",
+      "T1490"
+    ],
+    "description": "RaaS group responsible for high-profile ransomware attacks including Kaseya VSA supply chain attack.",
+    "ioc_patterns": [
+      "ransom note REVIL",
+      "encrypted files .rnnd extension",
+      "Tor payment portals"
+    ],
+    "confidence": 0.91
+  },
+  {
+    "id": "TI-006",
+    "name": "Cobalt Strike C2 Beacon",
+    "type": "tool",
+    "description": "Commercial penetration testing tool widely abused by threat actors as C2 framework.",
+    "ioc_patterns": [
+      "HTTP malleable C2 profiles",
+      "default certificate fingerprints",
+      "beacon staging patterns"
+    ],
+    "ttps": [
+      "T1071",
+      "T1572"
+    ],
+    "confidence": 0.85
+  },
+  {
+    "id": "TI-007",
+    "name": "Mimikatz Credential Dumping",
+    "type": "tool",
+    "description": "Open-source credential extraction tool used for dumping Windows credentials from LSASS.",
+    "ioc_patterns": [
+      "privilege::debug",
+      "sekurlsa::logonpasswords",
+      "LSASS memory access"
+    ],
+    "ttps": [
+      "T1003",
+      "T1134"
+    ],
+    "confidence": 0.95
+  },
+  {
+    "id": "TI-008",
+    "name": "Log4Shell Exploitation Pattern",
+    "type": "ioc",
+    "cve": "CVE-2021-44228",
+    "description": "JNDI injection pattern used to exploit Log4j vulnerability for remote code execution.",
+    "ioc_patterns": [
+      "${jndi:ldap://",
+      "${jndi:rmi://",
+      "${${::-j}${::-n}${::-d}${::-i}:"
+    ],
+    "severity": "CRITICAL",
+    "confidence": 0.99
+  },
+  {
+    "id": "TI-009",
+    "name": "Emotet Malware Distribution",
+    "type": "malware",
+    "description": "Modular banking trojan used as initial access broker, dropping additional payloads like Trickbot and Ryuk.",
+    "ioc_patterns": [
+      "malicious Word attachments",
+      "PowerShell download cradles",
+      "scheduled task persistence"
+    ],
+    "ttps": [
+      "T1566",
+      "T1059",
+      "T1547"
+    ],
+    "confidence": 0.87
+  },
+  {
+    "id": "TI-010",
+    "name": "PrintNightmare Exploitation",
+    "type": "ioc",
+    "cve": "CVE-2021-34527",
+    "description": "Windows Print Spooler privilege escalation and RCE vulnerability exploitation patterns.",
+    "ioc_patterns": [
+      "unusual spoolsv.exe child processes",
+      "DLL sideloading via Print Spooler",
+      "remote printer installation"
+    ],
+    "severity": "HIGH",
+    "confidence": 0.89
+  },
+  {
+    "id": "TI-011",
+    "name": "ProxyLogon Exchange Attack",
+    "type": "ioc",
+    "cve": "CVE-2021-26855",
+    "description": "Microsoft Exchange Server pre-authentication SSRF leading to RCE.",
+    "ioc_patterns": [
+      "autodiscover.json?a=",
+      "X-AnonResource-Backend header",
+      "web shell in OWA directory"
+    ],
+    "severity": "CRITICAL",
+    "confidence": 0.93
+  },
+  {
+    "id": "TI-012",
+    "name": "Golden Ticket Kerberos Attack",
+    "type": "ttp",
+    "description": "Forging Kerberos ticket-granting tickets using KRBTGT hash for persistent domain access.",
+    "ioc_patterns": [
+      "Kerberos ticket lifetime > 10 hours",
+      "ticket from non-DC",
+      "KRBTGT account hash extraction"
+    ],
+    "ttps": [
+      "T1558",
+      "T1003"
+    ],
+    "confidence": 0.88
+  },
+  {
+    "id": "TI-013",
+    "name": "DCSync Attack",
+    "type": "ttp",
+    "description": "Impersonating Domain Controller to request credential replication using DRSUAPI protocol.",
+    "ioc_patterns": [
+      "GetNCChanges request from non-DC",
+      "DRSUAPI replication traffic",
+      "unusual AD replication events"
+    ],
+    "ttps": [
+      "T1003"
+    ],
+    "confidence": 0.92
+  },
+  {
+    "id": "TI-014",
+    "name": "BloodHound AD Enumeration",
+    "type": "tool",
+    "description": "Active Directory attack path enumeration tool used to identify privilege escalation paths.",
+    "ioc_patterns": [
+      "massive LDAP queries",
+      "SharpHound ingestor artifacts",
+      "AD object enumeration spikes"
+    ],
+    "ttps": [
+      "T1087",
+      "T1069"
+    ],
+    "confidence": 0.82
+  },
+  {
+    "id": "TI-015",
+    "name": "Ransomware Pre-deployment Indicators",
+    "type": "behavioral",
+    "description": "Common behaviors observed in the 24-72 hours before ransomware deployment.",
+    "ioc_patterns": [
+      "shadow copy deletion",
+      "backup software termination",
+      "mass file access before encryption",
+      "lateral movement using admin shares"
+    ],
+    "ttps": [
+      "T1490",
+      "T1021",
+      "T1486"
+    ],
+    "confidence": 0.79
+  },
+  {
+    "id": "TI-016",
+    "name": "DNS Tunneling Data Exfiltration",
+    "type": "ttp",
+    "description": "Using DNS queries to exfiltrate data in encoded subdomains of attacker-controlled domains.",
+    "ioc_patterns": [
+      "high volume DNS queries to single domain",
+      "long subdomain strings",
+      "unusual DNS record types TXT/NULL"
+    ],
+    "ttps": [
+      "T1071",
+      "T1048"
+    ],
+    "confidence": 0.84
+  },
+  {
+    "id": "TI-017",
+    "name": "Living Off The Land Binaries (LOLBins)",
+    "type": "behavioral",
+    "description": "Using legitimate system binaries to execute malicious actions, evading detection.",
+    "ioc_patterns": [
+      "certutil.exe -decode",
+      "mshta.exe http://",
+      "regsvr32.exe /s /n /u /i:http://",
+      "wmic.exe os get"
+    ],
+    "ttps": [
+      "T1218",
+      "T1059"
+    ],
+    "confidence": 0.75
+  },
+  {
+    "id": "TI-018",
+    "name": "NTLM Relay Attack",
+    "type": "ttp",
+    "description": "Capturing and relaying NTLM authentication to authenticate to other services.",
+    "ioc_patterns": [
+      "responder.py activity",
+      "ntlmrelay traffic patterns",
+      "unusual NTLM authentication chains"
+    ],
+    "ttps": [
+      "T1557",
+      "T1187"
+    ],
+    "confidence": 0.83
+  },
+  {
+    "id": "TI-019",
+    "name": "Supply Chain Compromise Pattern",
+    "type": "behavioral",
+    "description": "Indicators of software supply chain attacks, including build system compromise and trojanized updates.",
+    "ioc_patterns": [
+      "signed malware with legitimate certificate",
+      "unusual update server connections",
+      "build system anomalies"
+    ],
+    "ttps": [
+      "T1195",
+      "T1553"
+    ],
+    "confidence": 0.71
+  },
+  {
+    "id": "TI-020",
+    "name": "Credential Stuffing Attack",
+    "type": "behavioral",
+    "description": "Automated use of leaked credential pairs against authentication endpoints.",
+    "ioc_patterns": [
+      "high volume login attempts",
+      "multiple IPs same username",
+      "distributed login from residential proxies",
+      "sequential account enumeration"
+    ],
+    "ttps": [
+      "T1110"
+    ],
+    "confidence": 0.9
+  },
+  {
+    "id": "TI-021",
+    "name": "Web Shell Indicators",
+    "type": "ioc",
+    "description": "Common web shell detection patterns across PHP, ASPX, and JSP variants.",
+    "ioc_patterns": [
+      "eval(base64_decode(",
+      "system($_GET[cmd])",
+      "<% Runtime.exec",
+      "chopper web shell signature"
+    ],
+    "ttps": [
+      "T1505"
+    ],
+    "confidence": 0.91
+  },
+  {
+    "id": "TI-022",
+    "name": "Cloud Resource Abuse",
+    "type": "behavioral",
+    "description": "Cryptomining and resource abuse following cloud environment compromise.",
+    "ioc_patterns": [
+      "unusual instance creation",
+      "high CPU workloads",
+      "outbound connections to mining pools",
+      "IAM role abuse"
+    ],
+    "ttps": [
+      "T1496",
+      "T1078"
+    ],
+    "confidence": 0.78
+  },
+  {
+    "id": "TI-023",
+    "name": "Insider Threat \u2014 Data Staging",
+    "type": "behavioral",
+    "description": "Behavioral indicators of insider threat data exfiltration activity.",
+    "ioc_patterns": [
+      "bulk file downloads after-hours",
+      "USB device connections",
+      "cloud storage uploads from corp network",
+      "access to non-role-specific data"
+    ],
+    "ttps": [
+      "T1074",
+      "T1052",
+      "T1567"
+    ],
+    "confidence": 0.72
+  },
+  {
+    "id": "TI-024",
+    "name": "Pass-the-Hash Lateral Movement",
+    "type": "ttp",
+    "description": "Using captured NTLM hashes to authenticate without knowing plaintext passwords.",
+    "ioc_patterns": [
+      "NTLM authentication with hash",
+      "wce.exe or sekurlsa",
+      "Type 3 logon without prior Type 2"
+    ],
+    "ttps": [
+      "T1550",
+      "T1021"
+    ],
+    "confidence": 0.87
+  },
+  {
+    "id": "TI-025",
+    "name": "Spear Phishing with Weaponized Documents",
+    "type": "ttp",
+    "description": "Targeted phishing emails containing macro-enabled or exploit-laden Office documents.",
+    "ioc_patterns": [
+      "Office documents with macros from email",
+      "Document spawning cmd.exe or powershell",
+      "wscript.exe from Office process"
+    ],
+    "ttps": [
+      "T1566",
+      "T1204",
+      "T1059"
+    ],
+    "confidence": 0.86
+  },
+  {
+    "id": "TI-026",
+    "name": "Remote Desktop Protocol Brute Force",
+    "type": "behavioral",
+    "description": "Automated attempts to brute force RDP credentials on internet-facing systems.",
+    "ioc_patterns": [
+      "RDP login failures from external IPs",
+      "EventID 4625 type 3 high volume",
+      "scanning port 3389 activity"
+    ],
+    "ttps": [
+      "T1110",
+      "T1133"
+    ],
+    "confidence": 0.93
+  },
+  {
+    "id": "TI-027",
+    "name": "Exfiltration via HTTPS to Cloud Storage",
+    "type": "ttp",
+    "description": "Data exfiltration using HTTPS to legitimate cloud storage services to evade detection.",
+    "ioc_patterns": [
+      "high volume uploads to Mega/Dropbox/OneDrive",
+      "unusual TLS certificate pinning",
+      "large PUT requests to cloud services"
+    ],
+    "ttps": [
+      "T1567",
+      "T1048"
+    ],
+    "confidence": 0.77
+  },
+  {
+    "id": "TI-028",
+    "name": "Kerberoasting",
+    "type": "ttp",
+    "description": "Requesting service tickets and cracking them offline to recover service account passwords.",
+    "ioc_patterns": [
+      "RC4-HMAC Kerberos ticket requests",
+      "TGS requests for multiple SPNs",
+      "unusual service ticket activity"
+    ],
+    "ttps": [
+      "T1558"
+    ],
+    "confidence": 0.89
+  },
+  {
+    "id": "TI-029",
+    "name": "Fileless Malware \u2014 PowerShell In-Memory",
+    "type": "behavioral",
+    "description": "Execution of malicious code entirely in memory without writing to disk.",
+    "ioc_patterns": [
+      "PowerShell AMSI bypass attempts",
+      "IEX(New-Object Net.WebClient)",
+      "reflective DLL injection",
+      "Process Hollowing indicators"
+    ],
+    "ttps": [
+      "T1059",
+      "T1055",
+      "T1027"
+    ],
+    "confidence": 0.82
+  },
+  {
+    "id": "TI-030",
+    "name": "Azure AD / Entra ID Attack Patterns",
+    "type": "behavioral",
+    "description": "Cloud identity attack patterns targeting Azure Active Directory.",
+    "ioc_patterns": [
+      "token theft from browser",
+      "application consent phishing",
+      "service principal secret abuse",
+      "impossible travel from Azure AD"
+    ],
+    "ttps": [
+      "T1539",
+      "T1528",
+      "T1078"
+    ],
+    "confidence": 0.8
+  }
+]

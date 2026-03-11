@@ -1,0 +1,318 @@
+[
+  {
+    "cve_id": "CVE-2021-44228",
+    "name": "Log4Shell",
+    "cvss_v3": 10.0,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Apache Log4j2 JNDI injection remote code execution. Affects Log4j 2.0-beta9 through 2.14.1. One of the most critical vulnerabilities ever discovered.",
+    "affected_products": [
+      "Apache Log4j",
+      "VMware vCenter",
+      "Minecraft",
+      "Cisco products"
+    ],
+    "remediation": "Upgrade to Log4j 2.16.0+, set log4j2.formatMsgNoLookups=true"
+  },
+  {
+    "cve_id": "CVE-2021-26855",
+    "name": "ProxyLogon",
+    "cvss_v3": 9.8,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Microsoft Exchange Server pre-authentication SSRF vulnerability allowing RCE without credentials.",
+    "affected_products": [
+      "Microsoft Exchange Server 2013/2016/2019"
+    ],
+    "remediation": "Apply Microsoft Security Update KB5000871"
+  },
+  {
+    "cve_id": "CVE-2021-34527",
+    "name": "PrintNightmare",
+    "cvss_v3": 8.8,
+    "severity": "HIGH",
+    "is_exploited": true,
+    "description": "Windows Print Spooler remote code execution and local privilege escalation.",
+    "affected_products": [
+      "Windows Server",
+      "Windows 10/11"
+    ],
+    "remediation": "Apply Microsoft patch MS-MSRC-2021-34527, disable Print Spooler where not needed"
+  },
+  {
+    "cve_id": "CVE-2022-30190",
+    "name": "Follina (MSDT)",
+    "cvss_v3": 7.8,
+    "severity": "HIGH",
+    "is_exploited": true,
+    "description": "Microsoft Windows Support Diagnostic Tool code execution via URI scheme in Office documents.",
+    "affected_products": [
+      "Microsoft Office",
+      "Windows 10/11",
+      "Windows Server"
+    ],
+    "remediation": "Disable MSDT URL Protocol, apply CVE-2022-30190 patch"
+  },
+  {
+    "cve_id": "CVE-2023-44487",
+    "name": "HTTP/2 Rapid Reset",
+    "cvss_v3": 7.5,
+    "severity": "HIGH",
+    "is_exploited": true,
+    "description": "HTTP/2 protocol zero-day enabling record-breaking DDoS attacks exceeding 398 million requests/sec.",
+    "affected_products": [
+      "nginx",
+      "Apache httpd",
+      "Microsoft IIS",
+      "Cloudflare",
+      "AWS"
+    ],
+    "remediation": "Apply vendor patches, configure HTTP/2 stream limits"
+  },
+  {
+    "cve_id": "CVE-2023-23397",
+    "name": "Outlook NTLM Leak",
+    "cvss_v3": 9.8,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Microsoft Outlook zero-click NTLM hash leak via specially crafted email. No user interaction required.",
+    "affected_products": [
+      "Microsoft Outlook 2016/2019/365"
+    ],
+    "remediation": "Apply March 2023 Patch Tuesday updates, block outbound SMB"
+  },
+  {
+    "cve_id": "CVE-2024-3400",
+    "name": "PAN-OS Command Injection",
+    "cvss_v3": 10.0,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Command injection in Palo Alto Networks PAN-OS GlobalProtect feature. Unauthenticated RCE.",
+    "affected_products": [
+      "Palo Alto Networks PAN-OS"
+    ],
+    "remediation": "Apply PAN-SA-2024-0006, disable GlobalProtect telemetry"
+  },
+  {
+    "cve_id": "CVE-2020-1472",
+    "name": "Zerologon",
+    "cvss_v3": 10.0,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Netlogon privilege escalation allowing unauthenticated domain controller takeover via cryptographic flaw.",
+    "affected_products": [
+      "Windows Server 2008-2019 Domain Controllers"
+    ],
+    "remediation": "Apply August 2020 Windows Update, enforce secure Netlogon"
+  },
+  {
+    "cve_id": "CVE-2021-21985",
+    "name": "VMware vCenter RCE",
+    "cvss_v3": 9.8,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Remote code execution in VMware vCenter Server via vSphere Client plugin without authentication.",
+    "affected_products": [
+      "VMware vCenter Server 6.5/6.7/7.0"
+    ],
+    "remediation": "Apply VMSA-2021-0010 patch immediately"
+  },
+  {
+    "cve_id": "CVE-2022-26134",
+    "name": "Confluence OGNL Injection",
+    "cvss_v3": 9.8,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Unauthenticated remote code execution via OGNL injection in Atlassian Confluence.",
+    "affected_products": [
+      "Atlassian Confluence Server and Data Center"
+    ],
+    "remediation": "Upgrade to 7.4.17, 7.13.7, 7.14.3, 7.15.2 or later"
+  },
+  {
+    "cve_id": "CVE-2023-0669",
+    "name": "GoAnywhere MFT RCE",
+    "cvss_v3": 7.2,
+    "severity": "HIGH",
+    "is_exploited": true,
+    "description": "Pre-authentication command injection in Fortra GoAnywhere MFT administrative interface.",
+    "affected_products": [
+      "Fortra GoAnywhere MFT < 7.1.2"
+    ],
+    "remediation": "Apply 7.1.2 patch, restrict admin portal network access"
+  },
+  {
+    "cve_id": "CVE-2023-34362",
+    "name": "MOVEit Transfer SQL Injection",
+    "cvss_v3": 9.8,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "SQL injection in Progress MOVEit Transfer exploited massively by Cl0p ransomware group.",
+    "affected_products": [
+      "Progress MOVEit Transfer"
+    ],
+    "remediation": "Apply vendor patches, review access logs for IOCs"
+  },
+  {
+    "cve_id": "CVE-2021-40444",
+    "name": "MSHTML ActiveX Zero-Day",
+    "cvss_v3": 7.8,
+    "severity": "HIGH",
+    "is_exploited": true,
+    "description": "Microsoft MSHTML remote code execution via specially crafted Office documents exploiting ActiveX.",
+    "affected_products": [
+      "Windows 10/Server with Office installed"
+    ],
+    "remediation": "Apply September 2021 Patch Tuesday, disable ActiveX"
+  },
+  {
+    "cve_id": "CVE-2022-41082",
+    "name": "ProxyNotShell",
+    "cvss_v3": 8.8,
+    "severity": "HIGH",
+    "is_exploited": true,
+    "description": "Microsoft Exchange Server RCE requiring authentication, chained with CVE-2022-41040 SSRF.",
+    "affected_products": [
+      "Microsoft Exchange Server 2013/2016/2019"
+    ],
+    "remediation": "Apply November 2022 Exchange SU, enable AMSI integration"
+  },
+  {
+    "cve_id": "CVE-2023-20269",
+    "name": "Cisco ASA SSL VPN Zero-Day",
+    "cvss_v3": 9.1,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Unauthorized brute force of Cisco ASA/FTD VPN credentials without authentication checks.",
+    "affected_products": [
+      "Cisco Adaptive Security Appliance",
+      "Cisco Firepower Threat Defense"
+    ],
+    "remediation": "Apply Cisco security advisory updates, enforce MFA"
+  },
+  {
+    "cve_id": "CVE-2024-21762",
+    "name": "Fortinet FortiOS SSL VPN",
+    "cvss_v3": 9.6,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Out-of-bounds write in FortiOS SSL VPN enabling unauthenticated RCE via specially crafted HTTP requests.",
+    "affected_products": [
+      "Fortinet FortiOS 6.x/7.x"
+    ],
+    "remediation": "Upgrade to patched versions, disable SSL VPN if not needed"
+  },
+  {
+    "cve_id": "CVE-2021-22986",
+    "name": "F5 BIG-IP iControl REST RCE",
+    "cvss_v3": 9.8,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Unauthenticated RCE via iControl REST interface in F5 BIG-IP. No authentication required.",
+    "affected_products": [
+      "F5 BIG-IP 12.x-16.x",
+      "F5 BIG-IQ"
+    ],
+    "remediation": "Apply F5 Security Advisory K03009991, restrict management access"
+  },
+  {
+    "cve_id": "CVE-2022-0847",
+    "name": "Dirty Pipe",
+    "cvss_v3": 7.8,
+    "severity": "HIGH",
+    "is_exploited": true,
+    "description": "Linux kernel pipe privilege escalation enabling unprivileged users to write to arbitrary read-only files.",
+    "affected_products": [
+      "Linux kernel 5.8 through 5.16.11"
+    ],
+    "remediation": "Update Linux kernel to 5.16.11, 5.15.25, or 5.10.102+"
+  },
+  {
+    "cve_id": "CVE-2021-3156",
+    "name": "Sudo Baron Samedit",
+    "cvss_v3": 7.8,
+    "severity": "HIGH",
+    "is_exploited": true,
+    "description": "Heap-based buffer overflow in sudo allowing any local user to gain root privileges.",
+    "affected_products": [
+      "sudo <= 1.9.5p1",
+      "most Linux distributions"
+    ],
+    "remediation": "Upgrade sudo to 1.9.5p2 or later immediately"
+  },
+  {
+    "cve_id": "CVE-2022-22963",
+    "name": "Spring4Shell",
+    "cvss_v3": 9.8,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "RCE vulnerability in Spring Framework via data binding on JDK 9+ allowing code execution.",
+    "affected_products": [
+      "Spring Framework 5.3.x before 5.3.18",
+      "Spring Framework 5.2.x before 5.2.20"
+    ],
+    "remediation": "Upgrade to Spring Framework 5.3.18 or 5.2.20+"
+  },
+  {
+    "cve_id": "CVE-2023-4966",
+    "name": "Citrix Bleed",
+    "cvss_v3": 9.4,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Session token disclosure in Citrix NetScaler ADC and Gateway enabling session hijacking without credentials.",
+    "affected_products": [
+      "Citrix NetScaler ADC",
+      "Citrix NetScaler Gateway"
+    ],
+    "remediation": "Apply CTX579459 patches, invalidate all active sessions"
+  },
+  {
+    "cve_id": "CVE-2023-48788",
+    "name": "Fortinet EMS SQL Injection",
+    "cvss_v3": 9.8,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "SQL injection in Fortinet FortiClientEMS allowing unauthenticated RCE as SYSTEM.",
+    "affected_products": [
+      "FortiClientEMS 6.4/7.0/7.2"
+    ],
+    "remediation": "Upgrade to 7.2.3 or 7.0.11 and later"
+  },
+  {
+    "cve_id": "CVE-2024-6387",
+    "name": "regreSSHion OpenSSH RCE",
+    "cvss_v3": 8.1,
+    "severity": "HIGH",
+    "is_exploited": false,
+    "description": "Signal handler race condition in OpenSSH sshd allowing unauthenticated RCE as root on glibc Linux.",
+    "affected_products": [
+      "OpenSSH < 4.4p1",
+      "OpenSSH >= 8.5p1 and < 9.8p1"
+    ],
+    "remediation": "Upgrade to OpenSSH 9.8p1, set LoginGraceTime=0 as mitigation"
+  },
+  {
+    "cve_id": "CVE-2024-21413",
+    "name": "Outlook Moniker Link RCE",
+    "cvss_v3": 9.8,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Microsoft Outlook RCE via specially crafted hyperlinks bypassing Protected View, enabling NTLM credential theft.",
+    "affected_products": [
+      "Microsoft Office 2016/2019/2021/365"
+    ],
+    "remediation": "Apply February 2024 Patch Tuesday updates"
+  },
+  {
+    "cve_id": "CVE-2023-42793",
+    "name": "TeamCity Auth Bypass",
+    "cvss_v3": 9.8,
+    "severity": "CRITICAL",
+    "is_exploited": true,
+    "description": "Authentication bypass in JetBrains TeamCity CI/CD server allowing RCE without credentials.",
+    "affected_products": [
+      "JetBrains TeamCity < 2023.05.4"
+    ],
+    "remediation": "Upgrade to 2023.05.4 or apply security patch plugin"
+  }
+]
