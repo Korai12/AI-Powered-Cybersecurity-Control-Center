@@ -1,173 +1,360 @@
 """
-main.py — FastAPI application entry point.
-Handles: lifespan (startup/shutdown), CORS, router registration, /health endpoint.
+ACCC Backend — main.py
+Phase 2.1 Update: Auth router, 4 WebSocket endpoints, Redis bridge
+
+Entry point for the FastAPI application. Manages:
+    - CORS middleware (reads ENVIRONMENT var)
+    - All API router registrations
+    - Lifespan: APScheduler, Redis bridge, WebSocket heartbeat
+    - Health endpoint with dependency status
+    - 4 WebSocket endpoints (G-02)
 """
+
+import asyncio
+import json
 import logging
+import os
 from contextlib import asynccontextmanager
 
-import redis.asyncio as aioredis
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
-from config import get_settings
-from database import wait_for_database, check_database_health
-from chromadb_client import wait_for_chromadb, check_chromadb_health
+from config import settings
+from database import get_db, engine
+from scheduler import start_scheduler, stop_scheduler
+from websocket.manager import manager as ws_manager
+from websocket.redis_bridge import start_redis_bridge
 
-# ── Settings ──────────────────────────────────────────────────────────────────
-settings = get_settings()
-
-# ── Logging ───────────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=getattr(logging, settings.log_level.upper(), logging.INFO),
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
-logger = logging.getLogger(__name__)
-
-# ── Redis client (module-level, re-used across requests) ─────────────────────
-redis_client: aioredis.Redis | None = None
-
-
-async def get_redis() -> aioredis.Redis:
-    return redis_client
-
-
-# ── Lifespan ──────────────────────────────────────────────────────────────────
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Startup: validate required connections before accepting traffic.
-    Shutdown: clean up connection pools.
-    """
-    global redis_client
-
-    logger.info("ACCC backend starting up…")
-
-    # 1. Wait for PostgreSQL
-    logger.info("Connecting to PostgreSQL…")
-    await wait_for_database()
-
-    # 2. Connect to Redis (retry pattern mirrors DB)
-    logger.info("Connecting to Redis…")
-    for attempt in range(1, 16):
-        try:
-            redis_client = aioredis.from_url(
-                settings.redis_url,
-                encoding="utf-8",
-                decode_responses=True,
-                socket_connect_timeout=5,
-            )
-            await redis_client.ping()
-            logger.info("Redis connection established ✓")
-            break
-        except Exception as exc:
-            if attempt < 15:
-                import asyncio
-                logger.info("Waiting for redis… attempt %d/15 (%s)", attempt, str(exc)[:60])
-                await asyncio.sleep(2)
-            else:
-                raise RuntimeError(f"Cannot connect to Redis: {exc}") from exc
-
-    # 3. Wait for ChromaDB
-    logger.info("Connecting to ChromaDB…")
-    await wait_for_chromadb()
-
-    # 4. Start scheduler (imported here to avoid circular import)
-    from scheduler import start_scheduler, stop_scheduler
-    await start_scheduler()
-
-    logger.info("ACCC backend ready ✓")
-    yield
-
-    # Shutdown
-    logger.info("ACCC backend shutting down…")
-    from scheduler import stop_scheduler
-    await stop_scheduler()
-    if redis_client:
-        await redis_client.aclose()
-    logger.info("Shutdown complete.")
-
-
-# ── Application ───────────────────────────────────────────────────────────────
-app = FastAPI(
-    title="ACCC — AI-Powered Cybersecurity Control Center",
-    version="2.1.0",
-    description="AI-driven SOC platform with agentic investigation, real-time threat intel, and multi-role access.",
-    docs_url="/docs" if settings.is_development else None,
-    redoc_url="/redoc" if settings.is_development else None,
-    lifespan=lifespan,
-)
-
-# ── CORS (G-10) ───────────────────────────────────────────────────────────────
-# development: wildcard  |  production: localhost:3000 only
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
-)
-
-# ── Routers ───────────────────────────────────────────────────────────────────
-# Imported here after app is created to avoid circular imports.
-# Each router is implemented in its respective phase.
+# --- API Routers ---
 from api.auth import router as auth_router
-from api.events import router as events_router
-from api.incidents import router as incidents_router
-from api.chat import router as chat_router
-from api.hunt import router as hunt_router
-from api.actions import router as actions_router
-from api.intel import router as intel_router
-from api.dashboard import router as dashboard_router
-from api.assets import router as assets_router
-from api.feedback import router as feedback_router
-from api.entities import router as entities_router
-from api.websocket import router as ws_router
 from api.events import router as events_router
 from api.simulate import router as simulate_router
 
-app.include_router(auth_router,       prefix="/auth",           tags=["auth"])
-app.include_router(events_router,     prefix="/api/v1/events",  tags=["events"])
-app.include_router(incidents_router,  prefix="/api/v1/incidents", tags=["incidents"])
-app.include_router(chat_router,       prefix="/api/v1/chat",    tags=["chat"])
-app.include_router(hunt_router,       prefix="/api/v1/hunt",    tags=["hunt"])
-app.include_router(actions_router,    prefix="/api/v1/actions", tags=["actions"])
-app.include_router(intel_router,      prefix="/api/v1/intel",   tags=["intel"])
-app.include_router(dashboard_router,  prefix="/api/v1/dashboard", tags=["dashboard"])
-app.include_router(assets_router,     prefix="/api/v1/assets",  tags=["assets"])
-app.include_router(feedback_router,   prefix="/api/v1/feedback", tags=["feedback"])
-app.include_router(entities_router,   prefix="/api/v1/entities", tags=["entities"])
-app.include_router(ws_router,         prefix="/ws",             tags=["websocket"])
+# Optional: import for WS auth
+from api.dependencies import get_current_user_ws
+from database import async_session_factory
+
+logger = logging.getLogger("accc")
+
+# Configure logging
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+)
+
+
+# ══════════════════════════════════════════════════════════
+# Lifespan — startup / shutdown
+# ══════════════════════════════════════════════════════════
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Manages startup and shutdown of background services:
+        1. APScheduler (background jobs)
+        2. Redis→WebSocket bridge (event streaming)
+        3. WebSocket heartbeat (30s ping)
+    """
+    # --- Startup ---
+    logger.info("ACCC Backend starting up...")
+
+    # Start APScheduler
+    await start_scheduler()
+
+    # Start Redis→WebSocket bridge as background task
+    redis_bridge_task = asyncio.create_task(start_redis_bridge())
+    logger.info("Redis→WebSocket bridge task created")
+
+    # Start WebSocket heartbeat
+    await ws_manager.start_heartbeat()
+
+    logger.info("ACCC Backend startup complete")
+
+    yield
+
+    # --- Shutdown ---
+    logger.info("ACCC Backend shutting down...")
+
+    # Stop heartbeat
+    await ws_manager.stop_heartbeat()
+
+    # Cancel Redis bridge
+    redis_bridge_task.cancel()
+    try:
+        await redis_bridge_task
+    except asyncio.CancelledError:
+        pass
+
+    # Stop scheduler
+    await stop_scheduler()
+
+    logger.info("ACCC Backend shutdown complete")
+
+
+# ══════════════════════════════════════════════════════════
+# FastAPI App
+# ══════════════════════════════════════════════════════════
+
+app = FastAPI(
+    title="ACCC — AI-Powered Cybersecurity Control Center",
+    description="Real-time AI-driven SOC platform",
+    version="2.1.0",
+    lifespan=lifespan,
+)
+
+# ══════════════════════════════════════════════════════════
+# CORS Middleware (G-10)
+# ══════════════════════════════════════════════════════════
+
+if settings.is_development:
+    origins = ["*"]
+else:
+    origins = [
+        "http://localhost:3000",
+        "http://frontend:3000",
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ══════════════════════════════════════════════════════════
+# Router Registration
+# ══════════════════════════════════════════════════════════
+
+# Auth routes — no /api/v1 prefix (per architecture spec)
+app.include_router(auth_router, prefix="")
+
+# API routes — /api/v1 prefix
 app.include_router(events_router, prefix="/api/v1")
 app.include_router(simulate_router, prefix="/api/v1")
 
-# ── Health Endpoint ───────────────────────────────────────────────────────────
-@app.get("/health", tags=["health"])
+# Phase 2.4 will add: chat_router
+# Phase 3+ will add: incidents_router, hunt_router, actions_router, etc.
+
+
+# ══════════════════════════════════════════════════════════
+# Health Endpoint
+# ══════════════════════════════════════════════════════════
+
+@app.get("/health", tags=["System"])
 async def health_check():
     """
-    Docker health check endpoint.
-    Returns 200 with service status when all dependencies are connected.
+    Returns service status for each dependency.
+    Used by Docker health checks and monitoring.
     """
-    db_health = await check_database_health()
-    chroma_health = check_chromadb_health()
+    import redis.asyncio as aioredis
+    import httpx
 
-    redis_status = "healthy"
+    statuses = {}
+
+    # PostgreSQL
     try:
-        if redis_client:
-            await redis_client.ping()
-    except Exception as exc:
-        redis_status = f"unhealthy: {exc}"
+        async with async_session_factory() as session:
+            await session.execute(text("SELECT 1"))
+        statuses["postgres"] = "ok"
+    except Exception as e:
+        statuses["postgres"] = f"error: {str(e)[:100]}"
 
-    return {
-        "status": "ok",
-        "version": "2.1.0",
-        "services": {
-            "database": db_health["status"],
-            "redis": redis_status,
-            "chromadb": chroma_health["status"],
-        },
-    }
+    # Redis
+    try:
+        r = aioredis.from_url(settings.REDIS_URL)
+        await r.ping()
+        await r.aclose()
+        statuses["redis"] = "ok"
+    except Exception as e:
+        statuses["redis"] = f"error: {str(e)[:100]}"
+
+    # ChromaDB
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{settings.CHROMADB_URL}/api/v1/heartbeat", timeout=5.0
+            )
+            statuses["chromadb"] = "ok" if resp.status_code == 200 else f"status: {resp.status_code}"
+    except Exception as e:
+        statuses["chromadb"] = f"error: {str(e)[:100]}"
+
+    # WebSocket connections count
+    statuses["websocket_connections"] = ws_manager.get_connection_count()
+
+    overall = "ok" if all(v == "ok" for k, v in statuses.items() if k != "websocket_connections") else "degraded"
+
+    return {"status": overall, "services": statuses}
 
 
-@app.get("/", include_in_schema=False)
-async def root():
-    return {"message": "ACCC API — see /docs for endpoint reference"}
+# ══════════════════════════════════════════════════════════
+# WebSocket Endpoints (G-02) — All 4 channels
+# ══════════════════════════════════════════════════════════
+
+@app.websocket("/ws/events")
+async def ws_events(
+    websocket: WebSocket,
+    token: str = Query(default=""),
+):
+    """
+    Live event feed — all connected analyst browsers subscribe.
+    Redis bridge broadcasts new events here in real-time.
+    Auth: JWT token passed as ?token=<jwt> query parameter.
+    """
+    # Validate JWT
+    async with async_session_factory() as session:
+        user = await get_current_user_ws(token, session)
+
+    if user is None:
+        await websocket.close(code=4001, reason="Authentication required")
+        return
+
+    await ws_manager.connect(websocket, "events")
+    try:
+        # Send welcome message
+        await ws_manager.send_personal(websocket, {
+            "type": "connected",
+            "channel": "events",
+            "user": user["username"],
+        })
+        # Keep connection alive — listen for client messages (ping/pong)
+        while True:
+            data = await websocket.receive_text()
+            # Client can send ping, we respond with pong
+            try:
+                msg = json.loads(data)
+                if msg.get("type") == "ping":
+                    await ws_manager.send_personal(websocket, {"type": "pong"})
+            except json.JSONDecodeError:
+                pass
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, "events")
+    except Exception as e:
+        logger.error(f"WS events error: {e}")
+        ws_manager.disconnect(websocket, "events")
+
+
+@app.websocket("/ws/chat/{session_id}")
+async def ws_chat(
+    websocket: WebSocket,
+    session_id: str,
+    token: str = Query(default=""),
+):
+    """
+    Per-session AI response token streaming.
+    Streams tokens as {type:'token', content:'...'} then
+    {type:'complete', confidence:N, evidence:[...]}.
+    Auth: JWT token as ?token=<jwt> query parameter.
+    """
+    # Validate JWT
+    async with async_session_factory() as session:
+        user = await get_current_user_ws(token, session)
+
+    if user is None:
+        await websocket.close(code=4001, reason="Authentication required")
+        return
+
+    channel = f"chat:{session_id}"
+    await ws_manager.connect(websocket, channel)
+    try:
+        await ws_manager.send_personal(websocket, {
+            "type": "connected",
+            "channel": channel,
+            "session_id": session_id,
+        })
+        while True:
+            data = await websocket.receive_text()
+            try:
+                msg = json.loads(data)
+                if msg.get("type") == "ping":
+                    await ws_manager.send_personal(websocket, {"type": "pong"})
+            except json.JSONDecodeError:
+                pass
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, channel)
+    except Exception:
+        ws_manager.disconnect(websocket, channel)
+
+
+@app.websocket("/ws/agent/{run_id}")
+async def ws_agent(
+    websocket: WebSocket,
+    run_id: str,
+    token: str = Query(default=""),
+):
+    """
+    Per-investigation ReAct agent step streaming (Phase 6).
+    Streams each think/act/observe step live.
+    STUB — accepts connections but only sends connected message.
+    """
+    async with async_session_factory() as session:
+        user = await get_current_user_ws(token, session)
+
+    if user is None:
+        await websocket.close(code=4001, reason="Authentication required")
+        return
+
+    channel = f"agent:{run_id}"
+    await ws_manager.connect(websocket, channel)
+    try:
+        await ws_manager.send_personal(websocket, {
+            "type": "connected",
+            "channel": channel,
+            "run_id": run_id,
+            "status": "stub — full implementation in Phase 6",
+        })
+        while True:
+            data = await websocket.receive_text()
+            try:
+                msg = json.loads(data)
+                if msg.get("type") == "ping":
+                    await ws_manager.send_personal(websocket, {"type": "pong"})
+            except json.JSONDecodeError:
+                pass
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, channel)
+    except Exception:
+        ws_manager.disconnect(websocket, channel)
+
+
+@app.websocket("/ws/hunt/{hunt_id}")
+async def ws_hunt(
+    websocket: WebSocket,
+    hunt_id: str,
+    token: str = Query(default=""),
+):
+    """
+    Per-hunt progress streaming (Phase 6).
+    Streams hunt progress steps as they complete.
+    STUB — accepts connections but only sends connected message.
+    """
+    async with async_session_factory() as session:
+        user = await get_current_user_ws(token, session)
+
+    if user is None:
+        await websocket.close(code=4001, reason="Authentication required")
+        return
+
+    channel = f"hunt:{hunt_id}"
+    await ws_manager.connect(websocket, channel)
+    try:
+        await ws_manager.send_personal(websocket, {
+            "type": "connected",
+            "channel": channel,
+            "hunt_id": hunt_id,
+            "status": "stub — full implementation in Phase 6",
+        })
+        while True:
+            data = await websocket.receive_text()
+            try:
+                msg = json.loads(data)
+                if msg.get("type") == "ping":
+                    await ws_manager.send_personal(websocket, {"type": "pong"})
+            except json.JSONDecodeError:
+                pass
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, channel)
+    except Exception:
+        ws_manager.disconnect(websocket, channel)

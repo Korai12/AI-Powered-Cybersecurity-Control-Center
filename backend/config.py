@@ -1,74 +1,79 @@
 """
-config.py — Application settings via Pydantic BaseSettings.
-Reads from environment variables / .env file.
-Fails fast on startup if required vars are missing.
+ACCC Backend Configuration
+Phase 2.1 Update: Added JWT settings (G-07, G-16)
+Reads all environment variables via pydantic BaseSettings.
+Fails loudly if required vars are missing.
 """
-from functools import lru_cache
-from typing import Optional
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
+import os
+from pydantic_settings import BaseSettings
+from pydantic import Field
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore",
+    """Application settings read from environment variables."""
+
+    # --- Required ---
+    OPENAI_API_KEY: str = Field(..., description="OpenAI API key for GPT-4o + embeddings")
+    POSTGRES_PASSWORD: str = Field(..., description="PostgreSQL password")
+    JWT_SECRET: str = Field(..., description="Secret key for JWT signing")
+
+    # --- PostgreSQL ---
+    POSTGRES_USER: str = Field(default="accc")
+    POSTGRES_DB: str = Field(default="accc_db")
+    POSTGRES_HOST: str = Field(default="postgres")
+    POSTGRES_PORT: int = Field(default=5432)
+
+    # --- Redis ---
+    REDIS_URL: str = Field(default="redis://redis:6379")
+
+    # --- ChromaDB ---
+    CHROMADB_HOST: str = Field(default="chromadb")
+    CHROMADB_PORT: int = Field(default=8000)
+
+    # --- AbuseIPDB (stub - graceful fallback if missing) ---
+    ABUSEIPDB_API_KEY: str = Field(default="")
+
+    # --- Log Generator ---
+    LOG_GENERATOR_RATE: int = Field(default=30)
+    GENERATOR_URL: str = Field(default="http://log_generator:8080")
+
+    # --- Application ---
+    ENVIRONMENT: str = Field(default="production")
+    LOG_LEVEL: str = Field(default="INFO")
+    ENABLE_AUDIO_ALERTS: bool = Field(default=True)
+
+    # --- JWT Configuration (G-16) ---
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
+        default=15,
+        description="Access token lifetime in minutes (short - limits exposure)"
     )
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
+        default=7,
+        description="Refresh token lifetime in days (long - analyst doesn't re-login daily)"
+    )
+    JWT_ALGORITHM: str = Field(default="HS256")
 
-    # ── Required ──────────────────────────────────────────────────────────────
-    openai_api_key: str
-    postgres_password: str
-    jwt_secret: str
+    @property
+    def DATABASE_URL(self) -> str:
+        return (
+            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
 
-    # ── Database ──────────────────────────────────────────────────────────────
-    database_url: str = "postgresql+asyncpg://accc:accc_secret_password@postgres:5432/accc_db"
-    postgres_user: str = "accc"
-    postgres_db: str = "accc_db"
+    @property
+    def CHROMADB_URL(self) -> str:
+        return f"http://{self.CHROMADB_HOST}:{self.CHROMADB_PORT}"
 
-    # ── Redis ─────────────────────────────────────────────────────────────────
-    redis_url: str = "redis://redis:6379"
-
-    # ── ChromaDB ──────────────────────────────────────────────────────────────
-    chromadb_host: str = "chromadb"
-    chromadb_port: int = 8000
-
-    # ── Auth ──────────────────────────────────────────────────────────────────
-    jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 15
-    refresh_token_expire_days: int = 7
-
-    # ── Optional APIs ─────────────────────────────────────────────────────────
-    abuseipdb_api_key: Optional[str] = None
-
-    # ── App Behaviour ─────────────────────────────────────────────────────────
-    environment: str = "production"
-    log_level: str = "INFO"
-    log_generator_rate: int = 30
-    enable_audio_alerts: bool = True
-
-    # ── OpenAI Models ─────────────────────────────────────────────────────────
-    openai_model_primary: str = "gpt-4o"
-    openai_model_fast: str = "gpt-4o-mini"
-    openai_embedding_model: str = "text-embedding-3-small"
-
-    # ── Derived helpers ───────────────────────────────────────────────────────
     @property
     def is_development(self) -> bool:
-        return self.environment.lower() == "development"
+        return self.ENVIRONMENT.lower() == "development"
 
-    @property
-    def cors_origins(self) -> list[str]:
-        if self.is_development:
-            return ["*"]
-        return ["http://localhost:3000"]
-
-    @property
-    def chromadb_url(self) -> str:
-        return f"http://{self.chromadb_host}:{self.chromadb_port}"
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        case_sensitive = True
 
 
-@lru_cache()
-def get_settings() -> Settings:
-    """Cached settings — validates all required fields on first call."""
-    return Settings()
+# Singleton settings instance
+settings = Settings()

@@ -1,86 +1,90 @@
 """
-database.py — Async SQLAlchemy engine, session factory, and connection retry logic.
-Backend retries every 2 seconds for up to 60 seconds before failing.
+ACCC Database Configuration — backend/database.py
+Phase 2.1 Update: Ensures async_session_factory is exported for WebSocket auth.
+
+Provides:
+    - engine: AsyncEngine for raw operations
+    - async_session_factory: sessionmaker for creating sessions directly
+    - get_db: FastAPI dependency for route handlers
 """
+
 import asyncio
 import logging
-from typing import AsyncGenerator
+import os
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.ext.asyncio import (
+    create_async_engine,
+    AsyncSession,
+    async_sessionmaker,
+)
 from sqlalchemy import text
 
-from config import get_settings
+from config import settings
 
-logger = logging.getLogger(__name__)
-settings = get_settings()
+logger = logging.getLogger("accc.database")
 
+# ──────────────────────────────────────────────────────────
+# Engine with connection retry
+# ──────────────────────────────────────────────────────────
 
-class Base(DeclarativeBase):
-    pass
-
-
-# Create async engine (pool size tuned for hackathon scale)
 engine = create_async_engine(
-    settings.database_url,
+    settings.DATABASE_URL,
+    echo=settings.is_development,
+    pool_pre_ping=True,
     pool_size=10,
     max_overflow=20,
-    pool_pre_ping=True,       # Re-validates connections before use
-    pool_recycle=3600,        # Recycle connections every hour
-    echo=settings.is_development,
 )
 
-AsyncSessionLocal = async_sessionmaker(
+# ──────────────────────────────────────────────────────────
+# Session Factory
+# ──────────────────────────────────────────────────────────
+
+async_session_factory = async_sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False,
-    autoflush=False,
-    autocommit=False,
 )
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency — yields a database session."""
-    async with AsyncSessionLocal() as session:
+# ──────────────────────────────────────────────────────────
+# FastAPI Dependency
+# ──────────────────────────────────────────────────────────
+
+async def get_db():
+    """
+    FastAPI dependency that provides a database session.
+    Usage:
+        @router.get('/endpoint')
+        async def handler(db: AsyncSession = Depends(get_db)):
+            ...
+    """
+    async with async_session_factory() as session:
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise
-        finally:
-            await session.close()
 
 
-async def wait_for_database(max_attempts: int = 30, delay: float = 2.0) -> None:
+# ──────────────────────────────────────────────────────────
+# Connection retry (used during startup)
+# ──────────────────────────────────────────────────────────
+
+async def wait_for_database(max_retries: int = 30, delay: float = 2.0) -> bool:
     """
-    Retry loop — attempts DB connection every `delay` seconds.
-    Logs attempt number clearly so container logs are readable.
-    Raises RuntimeError if all attempts are exhausted.
+    Exponential backoff retry on connection (attempts every 2s for 60s).
+    Called during application startup.
     """
-    for attempt in range(1, max_attempts + 1):
+    for attempt in range(1, max_retries + 1):
         try:
             async with engine.begin() as conn:
                 await conn.execute(text("SELECT 1"))
-            logger.info("Database connection established ✓")
-            return
-        except Exception as exc:
-            if attempt < max_attempts:
-                logger.info(
-                    "Waiting for postgres... attempt %d/%d (%s)",
-                    attempt, max_attempts, str(exc)[:60],
-                )
+            logger.info(f"Database connected (attempt {attempt})")
+            return True
+        except Exception as e:
+            logger.warning(f"Database connection attempt {attempt}/{max_retries} failed: {e}")
+            if attempt < max_retries:
                 await asyncio.sleep(delay)
-            else:
-                logger.error("Database unreachable after %d attempts — giving up", max_attempts)
-                raise RuntimeError(f"Cannot connect to database: {exc}") from exc
 
-
-async def check_database_health() -> dict:
-    """Returns health status dict for /health endpoint."""
-    try:
-        async with AsyncSessionLocal() as session:
-            await session.execute(text("SELECT 1"))
-        return {"status": "healthy"}
-    except Exception as exc:
-        return {"status": "unhealthy", "error": str(exc)}
+    logger.error("Could not connect to database after maximum retries")
+    return False
