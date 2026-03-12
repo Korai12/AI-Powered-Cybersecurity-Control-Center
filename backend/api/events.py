@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.dependencies import get_current_user
 from database import get_db
 from services.ai.triage import triage_event_by_id
+from services.ingestion.enrichment import enrich_event_after_ingest
 from services.ingestion.normalizer import normalize
 
 logger = logging.getLogger(__name__)
@@ -107,7 +108,10 @@ async def ingest_event(
 ):
     ces = normalize(req.raw_log)
     event_id = await _insert_event(db, ces)
+
     background_tasks.add_task(_publish_to_redis, event_id, ces.severity, ces.event_type)
+    background_tasks.add_task(enrich_event_after_ingest, event_id)
+
     return IngestResponse(
         event_id=event_id,
         severity=ces.severity,
@@ -133,6 +137,7 @@ async def ingest_batch(
             event_id = await _insert_event(db, ces)
             ids.append(event_id)
             background_tasks.add_task(_publish_to_redis, event_id, ces.severity, ces.event_type)
+            background_tasks.add_task(enrich_event_after_ingest, event_id)
         except Exception as exc:
             logger.warning("Batch ingest item failed: %s", exc)
             failed += 1

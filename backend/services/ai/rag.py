@@ -17,7 +17,6 @@ import json
 import logging
 import re
 from typing import Optional
-
 import httpx
 
 from config import settings
@@ -28,6 +27,10 @@ from services.ai.openai_helper import (
     chat_completion_stream,
     PRIMARY_MODEL,
 )
+
+from services.intel.abuseipdb import lookup_abuseipdb
+from services.intel.geoip import lookup_geoip
+from services.intel.nvd_cve import lookup_cve
 
 logger = logging.getLogger("accc.rag")
 
@@ -156,25 +159,28 @@ async def layer1_semantic_search(query: str) -> list[dict]:
 # ──────────────────────────────────────────────────────────
 
 async def layer2_ip_intel(query: str, event_context: Optional[dict] = None) -> list[dict]:
-    """
-    If query or event context contains external IPs, inject AbuseIPDB
-    reputation data. Check Redis cache first.
-
-    STUB — Full implementation in Phase 3.
-    Returns empty list until AbuseIPDB integration is built.
-    """
-    # Extract IPs from query/context for future use
+    """If query or event context contains external IPs, inject live-or-cached IP intel."""
     ips = _extract_ips(query)
     if event_context:
         for field in ["src_ip", "dst_ip"]:
             ip = event_context.get(field)
             if ip and not _is_private_ip(ip):
-                ips.add(ip)
+                ips.add(str(ip))
 
-    if ips:
-        logger.debug(f"Layer 2 IP intel: found {len(ips)} external IPs (stub — Phase 3)")
+    results: list[dict] = []
+    for ip in list(ips)[:5]:
+        geo = await lookup_geoip(ip)
+        reputation = await lookup_abuseipdb(ip)
+        if geo or reputation:
+            results.append(
+                {
+                    "ip": ip,
+                    "geo": geo,
+                    "reputation": reputation,
+                }
+            )
 
-    return []
+    return results
 
 
 # ──────────────────────────────────────────────────────────
@@ -182,18 +188,19 @@ async def layer2_ip_intel(query: str, event_context: Optional[dict] = None) -> l
 # ──────────────────────────────────────────────────────────
 
 async def layer3_cve_intel(query: str, event_context: Optional[dict] = None) -> list[dict]:
-    """
-    If query references software, ports, or CVE IDs, inject NVD CVE data.
-    Check Redis cache first.
+    """If query or event context contains CVE IDs, inject live-or-cached NVD data."""
+    cves = {cve.upper() for cve in _extract_cves(query)}
+    if event_context:
+        for cve_id in event_context.get("relevant_cves") or []:
+            cves.add(str(cve_id).upper())
 
-    STUB — Full implementation in Phase 3.
-    Returns empty list until NVD integration is built.
-    """
-    cves = _extract_cves(query)
-    if cves:
-        logger.debug(f"Layer 3 CVE intel: found {len(cves)} CVE references (stub — Phase 3)")
+    results: list[dict] = []
+    for cve_id in list(cves)[:5]:
+        details = await lookup_cve(cve_id)
+        if details:
+            results.append(details)
 
-    return []
+    return results
 
 
 # ──────────────────────────────────────────────────────────
@@ -353,12 +360,11 @@ def _format_context_for_llm(
     # Layer 1 — Semantic search results
     if semantic_results:
         sections.append("## Threat Intelligence Knowledge Base")
-        for i, result in enumerate(semantic_results[:15], 1):  # Cap at 15 to avoid token overflow
+        for i, result in enumerate(semantic_results[:15], 1):
             collection = result.get("collection", "unknown")
             doc = result.get("document", "")
             meta = result.get("metadata", {})
 
-            # Format based on collection type
             if collection == "mitre_techniques":
                 name = meta.get("name", meta.get("technique_name", ""))
                 tactic = meta.get("tactic", "")
@@ -380,13 +386,24 @@ def _format_context_for_llm(
     if ip_intel:
         sections.append("\n## IP Reputation Intelligence")
         for entry in ip_intel:
-            sections.append(f"IP {entry.get('ip', 'N/A')}: abuse_score={entry.get('abuse_score', 'N/A')}")
+            rep = entry.get("reputation") or {}
+            geo = entry.get("geo") or {}
+            sections.append(
+                f"IP {entry.get('ip', 'N/A')}: "
+                f"abuse_score={rep.get('abuse_score', 'N/A')}, "
+                f"country={geo.get('geo_country', 'N/A')}, "
+                f"city={geo.get('geo_city', 'N/A')}"
+            )
 
     # Layer 3 — CVE Intel (Phase 3)
     if cve_intel:
         sections.append("\n## CVE Intelligence")
         for entry in cve_intel:
-            sections.append(f"{entry.get('cve_id', 'N/A')}: CVSS={entry.get('cvss_score', 'N/A')} — {entry.get('description', '')[:200]}")
+            sections.append(
+                f"{entry.get('cve_id', 'N/A')}: "
+                f"CVSS={entry.get('cvss_score', 'N/A')} — "
+                f"{entry.get('description', '')[:200]}"
+            )
 
     # Layer 4 — Feedback (Phase 7)
     if feedback_context:
