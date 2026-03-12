@@ -132,11 +132,7 @@ app.add_middleware(
 # Auth routes — no /api/v1 prefix (per architecture spec)
 app.include_router(auth_router, prefix="")
 
-# API routes — /api/v1 prefix
-app.include_router(events_router, prefix="/api/v1")
-app.include_router(simulate_router, prefix="/api/v1")
-
-# Phase 2.4 chat_router
+# API routes — /api/v1 prefix - Phase 2.4 
 app.include_router(events_router, prefix="/api/v1")
 app.include_router(simulate_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
