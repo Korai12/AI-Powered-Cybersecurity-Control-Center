@@ -22,7 +22,7 @@ from sqlalchemy import text
 
 from config import settings
 from database import get_db, engine
-from scheduler import start_scheduler, stop_scheduler
+from scheduler import start_scheduler, stop_scheduler, get_registered_jobs
 from websocket.manager import manager as ws_manager
 from websocket.redis_bridge import start_redis_bridge
 
@@ -30,6 +30,7 @@ from websocket.redis_bridge import start_redis_bridge
 from api.auth import router as auth_router
 from api.events import router as events_router
 from api.simulate import router as simulate_router
+from api.chat import router as chat_router
 
 # Optional: import for WS auth
 from api.dependencies import get_current_user_ws
@@ -99,7 +100,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="ACCC — AI-Powered Cybersecurity Control Center",
     description="Real-time AI-driven SOC platform",
-    version="2.1.0",
+    version="2.4.0",
     lifespan=lifespan,
 )
 
@@ -135,7 +136,10 @@ app.include_router(auth_router, prefix="")
 app.include_router(events_router, prefix="/api/v1")
 app.include_router(simulate_router, prefix="/api/v1")
 
-# Phase 2.4 will add: chat_router
+# Phase 2.4 chat_router
+app.include_router(events_router, prefix="/api/v1")
+app.include_router(simulate_router, prefix="/api/v1")
+app.include_router(chat_router, prefix="/api/v1")
 # Phase 3+ will add: incidents_router, hunt_router, actions_router, etc.
 
 
@@ -175,19 +179,30 @@ async def health_check():
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.get(
-                f"{settings.CHROMADB_URL}/api/v1/heartbeat", timeout=5.0
+                f"{settings.CHROMADB_URL}/api/v1/heartbeat",
+                timeout=5.0,
             )
             statuses["chromadb"] = "ok" if resp.status_code == 200 else f"status: {resp.status_code}"
     except Exception as e:
         statuses["chromadb"] = f"error: {str(e)[:100]}"
 
-    # WebSocket connections count
     statuses["websocket_connections"] = ws_manager.get_connection_count()
 
-    overall = "ok" if all(v == "ok" for k, v in statuses.items() if k != "websocket_connections") else "degraded"
+    overall = "ok" if all(
+        v == "ok" for k, v in statuses.items() if k != "websocket_connections"
+    ) else "degraded"
 
-    return {"status": overall, "services": statuses}
+    scheduler_jobs = get_registered_jobs()
 
+    return {
+        "status": overall,
+        "services": statuses,
+        "scheduler": {
+            "running": len(scheduler_jobs) > 0,
+            "job_count": len(scheduler_jobs),
+            "jobs": scheduler_jobs,
+        },
+    }
 
 # ══════════════════════════════════════════════════════════
 # WebSocket Endpoints (G-02) — All 4 channels
