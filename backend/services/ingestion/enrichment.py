@@ -56,10 +56,7 @@ def _infer_cve_candidates(event: dict[str, Any]) -> list[str]:
 async def enrich_event_after_ingest(event_id: str) -> dict[str, Any]:
     try:
         async with async_session_factory() as db:
-            result = await db.execute(
-                text("SELECT * FROM events WHERE id = :id"),
-                {"id": event_id},
-            )
+            result = await db.execute(text("SELECT * FROM events WHERE id = :id"), {"id": event_id})
             row = result.mappings().first()
             if not row:
                 return {"status": "missing", "event_id": event_id}
@@ -70,28 +67,19 @@ async def enrich_event_after_ingest(event_id: str) -> dict[str, Any]:
             geo_task = enrich_event_geo_fields(src_ip)
             abuse_task = lookup_abuseipdb(src_ip, db=db)
 
-            geo_data, abuse_data = await asyncio.gather(
-                geo_task,
-                abuse_task,
-                return_exceptions=True,
-            )
+            geo_data, abuse_data = await asyncio.gather(geo_task, abuse_task, return_exceptions=True)
 
             if isinstance(geo_data, Exception):
                 logger.warning("Geo enrichment failed for %s: %s", event_id, geo_data)
                 geo_data = {}
-
             if isinstance(abuse_data, Exception):
                 logger.warning("AbuseIPDB enrichment failed for %s: %s", event_id, abuse_data)
                 abuse_data = None
 
             cve_ids = _infer_cve_candidates(event)
             cve_details: list[dict[str, Any]] = []
-
             if cve_ids:
-                cve_results = await asyncio.gather(
-                    *(lookup_cve(cve_id, db=db) for cve_id in cve_ids),
-                    return_exceptions=True,
-                )
+                cve_results = await asyncio.gather(*(lookup_cve(cve_id, db=db) for cve_id in cve_ids), return_exceptions=True)
                 for item in cve_results:
                     if isinstance(item, Exception):
                         logger.warning("CVE enrichment subtask failed for %s: %s", event_id, item)
@@ -99,10 +87,7 @@ async def enrich_event_after_ingest(event_id: str) -> dict[str, Any]:
                     if item:
                         cve_details.append(item)
 
-            abuse_score = None
-            if isinstance(abuse_data, dict):
-                abuse_score = abuse_data.get("abuse_score")
-
+            abuse_score = abuse_data.get("abuse_score") if isinstance(abuse_data, dict) else None
             event["geo_country"] = geo_data.get("geo_country") or event.get("geo_country")
             event["geo_city"] = geo_data.get("geo_city") or event.get("geo_city")
             event["geo_lat"] = geo_data.get("geo_lat") if geo_data.get("geo_lat") is not None else event.get("geo_lat")
@@ -139,6 +124,28 @@ async def enrich_event_after_ingest(event_id: str) -> dict[str, Any]:
             )
             await db.commit()
 
+            try:
+                import json
+                import os
+
+                import redis.asyncio as aioredis
+
+                redis_client = await aioredis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379"))
+                await redis_client.publish(
+                    "accc:events:new",
+                    json.dumps(
+                        {
+                            "event_id": event_id,
+                            "severity": event.get("severity"),
+                            "event_type": event.get("event_type"),
+                            "update_type": "enrichment_complete",
+                        }
+                    ),
+                )
+                await redis_client.aclose()
+            except Exception as exc:
+                logger.debug("Enrichment publish skipped for %s: %s", event_id, exc)
+
             return {
                 "status": "ok",
                 "event_id": event_id,
@@ -147,11 +154,6 @@ async def enrich_event_after_ingest(event_id: str) -> dict[str, Any]:
                 "cves": [item["cve_id"] for item in cve_details],
                 "severity_score": scoring["final_score"],
             }
-
     except Exception as exc:
         logger.warning("Event enrichment failed for %s: %s", event_id, exc)
-        return {
-            "status": "error",
-            "event_id": event_id,
-            "error": str(exc),
-        }
+        return {"status": "error", "event_id": event_id, "error": str(exc)}

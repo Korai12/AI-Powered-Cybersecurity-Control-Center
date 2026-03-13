@@ -32,6 +32,7 @@ from api.events import router as events_router
 from api.simulate import router as simulate_router
 from api.chat import router as chat_router
 from api.intel import router as intel_router
+from api.dashboard import router as dashboard_router
 
 # Optional: import for WS auth
 from api.dependencies import get_current_user_ws
@@ -138,6 +139,7 @@ app.include_router(events_router, prefix="/api/v1")
 app.include_router(simulate_router, prefix="/api/v1")
 app.include_router(chat_router, prefix="/api/v1")
 app.include_router(intel_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")
 # Phase 3+ will add: incidents_router, hunt_router, actions_router, etc.
 
 

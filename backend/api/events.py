@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,6 +50,48 @@ class BatchIngestResponse(BaseModel):
     event_ids: list[str]
 
 
+def _parse_time_range_to_minutes(value: Optional[str | int]) -> int:
+    if value is None:
+        return 60
+    if isinstance(value, int):
+        return value
+
+    raw = str(value).strip().lower()
+    if raw.isdigit():
+        return int(raw)
+    if raw.endswith("m") and raw[:-1].isdigit():
+        return int(raw[:-1])
+    if raw.endswith("h") and raw[:-1].isdigit():
+        return int(raw[:-1]) * 60
+    if raw.endswith("d") and raw[:-1].isdigit():
+        return int(raw[:-1]) * 60 * 24
+
+    return 60
+
+
+def _serialise_scalar(value: Any) -> Any:
+    if isinstance(value, UUID):
+        return str(value)
+
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except Exception:
+            return value
+
+    if isinstance(value, (list, tuple)):
+        return [_serialise_scalar(item) for item in value]
+
+    if value.__class__.__name__ in {"IPv4Address", "IPv6Address"}:
+        return str(value)
+
+    return value
+
+
+def _row_to_dict(row: dict[str, Any]) -> dict[str, Any]:
+    return {key: _serialise_scalar(value) for key, value in dict(row).items()}
+
+
 async def _insert_event(db: AsyncSession, ces) -> str:
     d = ces.to_db_dict()
     result = await db.execute(
@@ -85,7 +128,6 @@ async def _insert_event(db: AsyncSession, ces) -> str:
 
 async def _publish_to_redis(event_id: str, severity: str, event_type: str):
     try:
-        import json
         import os
 
         import redis.asyncio as aioredis
@@ -93,11 +135,28 @@ async def _publish_to_redis(event_id: str, severity: str, event_type: str):
         r = await aioredis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379"))
         await r.publish(
             "accc:events:new",
-            json.dumps({"event_id": event_id, "severity": severity, "event_type": event_type}),
+            json.dumps(
+                {
+                    "event_id": event_id,
+                    "severity": severity,
+                    "event_type": event_type,
+                    "published_at": datetime.utcnow().isoformat() + "Z",
+                }
+            ),
         )
         await r.aclose()
     except Exception as exc:
         logger.debug("Redis publish skipped: %s", exc)
+
+
+async def _ingest_one(raw_log: str, db: AsyncSession, background_tasks: BackgroundTasks) -> tuple[str, Any]:
+    ces = normalize(raw_log)
+    event_id = await _insert_event(db, ces)
+
+    background_tasks.add_task(_publish_to_redis, event_id, ces.severity, ces.event_type)
+    background_tasks.add_task(enrich_event_after_ingest, event_id)
+
+    return event_id, ces
 
 
 @router.post("/events/ingest", response_model=IngestResponse, tags=["events"])
@@ -106,11 +165,7 @@ async def ingest_event(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    ces = normalize(req.raw_log)
-    event_id = await _insert_event(db, ces)
-
-    background_tasks.add_task(_publish_to_redis, event_id, ces.severity, ces.event_type)
-    background_tasks.add_task(enrich_event_after_ingest, event_id)
+    event_id, ces = await _ingest_one(req.raw_log, db, background_tasks)
 
     return IngestResponse(
         event_id=event_id,
@@ -133,11 +188,8 @@ async def ingest_batch(
 
     for raw in req.logs:
         try:
-            ces = normalize(raw)
-            event_id = await _insert_event(db, ces)
+            event_id, _ = await _ingest_one(raw, db, background_tasks)
             ids.append(event_id)
-            background_tasks.add_task(_publish_to_redis, event_id, ces.severity, ces.event_type)
-            background_tasks.add_task(enrich_event_after_ingest, event_id)
         except Exception as exc:
             logger.warning("Batch ingest item failed: %s", exc)
             failed += 1
@@ -145,44 +197,127 @@ async def ingest_batch(
     return BatchIngestResponse(ingested=len(ids), failed=failed, event_ids=ids)
 
 
+@router.post("/events/upload", tags=["events"])
+async def upload_events_file(
+    file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = None,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    del current_user
+
+    raw_bytes = await file.read()
+    if not raw_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    text_content = raw_bytes.decode("utf-8", errors="ignore").strip()
+    if not text_content:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    logs: list[str] = []
+
+    if file.filename and file.filename.lower().endswith(".json"):
+        try:
+            parsed = json.loads(text_content)
+            if isinstance(parsed, list):
+                logs = [json.dumps(item) if not isinstance(item, str) else item for item in parsed]
+            elif isinstance(parsed, dict):
+                logs = [json.dumps(parsed)]
+            else:
+                logs = [text_content]
+        except json.JSONDecodeError:
+            logs = [line for line in text_content.splitlines() if line.strip()]
+    else:
+        logs = [line for line in text_content.splitlines() if line.strip()]
+
+    if not logs:
+        raise HTTPException(status_code=400, detail="No ingestible records found in uploaded file")
+
+    if len(logs) > 1000:
+        raise HTTPException(status_code=400, detail="Upload limit is 1000 events")
+
+    ingested_ids: list[str] = []
+    failed = 0
+
+    for raw in logs:
+        try:
+            event_id, _ = await _ingest_one(raw, db, background_tasks)
+            ingested_ids.append(event_id)
+        except Exception as exc:
+            logger.warning("Upload ingest failed: %s", exc)
+            failed += 1
+
+    return {
+        "filename": file.filename,
+        "ingested": len(ingested_ids),
+        "failed": failed,
+        "event_ids": ingested_ids,
+    }
+
+
 @router.get("/events", tags=["events"])
 async def list_events(
-    severity: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None, description="Single severity or comma-separated severities"),
     event_type: Optional[str] = Query(None),
+    type_: Optional[str] = Query(None, alias="type"),
     triage_status: Optional[str] = Query(None),
     source: Optional[str] = Query(None),
-    time_range: Optional[int] = Query(None, description="Last N minutes"),
+    time_range: Optional[str] = Query(None, description="Examples: 60, 60m, 24h, 7d"),
+    geo: bool = Query(False, description="Only return events with geo coordinates"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
-    conditions = []
-    params: dict = {"limit": limit, "offset": offset}
+    conditions: list[str] = []
+    params: dict[str, Any] = {"limit": limit, "offset": offset}
 
     if severity:
-        conditions.append("severity = :severity")
-        params["severity"] = severity.upper()
-    if event_type:
-        conditions.append("event_type = :event_type")
-        params["event_type"] = event_type
+        severities = [item.strip().upper() for item in severity.split(",") if item.strip()]
+        if severities:
+            placeholders = []
+            for index, item in enumerate(severities):
+                key = f"severity_{index}"
+                params[key] = item
+                placeholders.append(f":{key}")
+            conditions.append(f"severity IN ({', '.join(placeholders)})")
+
+    requested_event_type = event_type or type_
+    if requested_event_type:
+        types = [item.strip() for item in requested_event_type.split(",") if item.strip()]
+        if types:
+            placeholders = []
+            for index, item in enumerate(types):
+                key = f"event_type_{index}"
+                params[key] = item
+                placeholders.append(f":{key}")
+            conditions.append(f"event_type IN ({', '.join(placeholders)})")
+
     if triage_status:
         conditions.append("triage_status = :triage_status")
         params["triage_status"] = triage_status
+
     if source:
         conditions.append("source_identifier ILIKE :source")
         params["source"] = f"%{source}%"
+
     if time_range:
+        params["time_range"] = _parse_time_range_to_minutes(time_range)
         conditions.append("timestamp >= NOW() - (:time_range * INTERVAL '1 minute')")
-        params["time_range"] = time_range
+
+    if geo:
+        conditions.append("geo_lat IS NOT NULL AND geo_lon IS NOT NULL")
 
     where = "WHERE " + " AND ".join(conditions) if conditions else ""
 
     result = await db.execute(
         text(
             f"""
-            SELECT id, timestamp, source_format, source_identifier, event_type,
-                   severity, src_ip, dst_ip, username, hostname, triage_status,
-                   mitre_tactic, mitre_technique, severity_score, tags, incident_id
+            SELECT id, timestamp, ingested_at, source_format, source_identifier, event_type,
+                   severity, raw_log, src_ip, dst_ip, src_port, dst_port, protocol,
+                   username, hostname, process_name, file_hash, action, rule_id,
+                   geo_country, geo_city, geo_lat, geo_lon, abuse_score,
+                   relevant_cves, mitre_tactic, mitre_technique, severity_score,
+                   is_false_positive, incident_id, triage_status, ai_triage_notes, tags
             FROM events
             {where}
             ORDER BY timestamp DESC
@@ -195,7 +330,7 @@ async def list_events(
 
     count_params = {k: v for k, v in params.items() if k not in {"limit", "offset"}}
     count_result = await db.execute(text(f"SELECT COUNT(*) FROM events {where}"), count_params)
-    total = count_result.scalar()
+    total = int(count_result.scalar() or 0)
 
     return {
         "total": total,
@@ -207,9 +342,11 @@ async def list_events(
 
 @router.get("/events/stats", tags=["events"])
 async def event_stats(
-    time_range: int = Query(60, description="Last N minutes"),
+    time_range: str = Query("60", description="Examples: 60, 60m, 24h, 7d"),
     db: AsyncSession = Depends(get_db),
 ):
+    minutes = _parse_time_range_to_minutes(time_range)
+
     result = await db.execute(
         text(
             """
@@ -218,6 +355,7 @@ async def event_stats(
                 COUNT(*) FILTER (WHERE severity='HIGH')     AS high_count,
                 COUNT(*) FILTER (WHERE severity='MEDIUM')   AS medium_count,
                 COUNT(*) FILTER (WHERE severity='LOW')      AS low_count,
+                COUNT(*) FILTER (WHERE severity='INFO')     AS info_count,
                 COUNT(*) FILTER (WHERE triage_status='pending') AS pending_count,
                 COUNT(*) FILTER (WHERE is_false_positive=TRUE)  AS false_positive_count,
                 COUNT(*) AS total_count
@@ -225,7 +363,7 @@ async def event_stats(
             WHERE timestamp >= NOW() - (:minutes * INTERVAL '1 minute')
             """
         ),
-        {"minutes": time_range},
+        {"minutes": minutes},
     )
     row = result.mappings().fetchone()
 
@@ -240,13 +378,51 @@ async def event_stats(
             LIMIT 10
             """
         ),
-        {"minutes": time_range},
+        {"minutes": minutes},
+    )
+    type_rows = by_type.fetchall()
+
+    trend = await db.execute(
+        text(
+            """
+            SELECT
+                date_trunc('hour', timestamp) AS bucket,
+                COUNT(*) FILTER (WHERE severity='CRITICAL') AS critical,
+                COUNT(*) FILTER (WHERE severity='HIGH') AS high,
+                COUNT(*) FILTER (WHERE severity='MEDIUM') AS medium,
+                COUNT(*) FILTER (WHERE severity='LOW') AS low,
+                COUNT(*) FILTER (WHERE severity='INFO') AS info,
+                COUNT(*) AS total
+            FROM events
+            WHERE timestamp >= NOW() - (:minutes * INTERVAL '1 minute')
+            GROUP BY 1
+            ORDER BY 1
+            """
+        ),
+        {"minutes": minutes},
     )
 
+    counts = {key: int(value or 0) for key, value in dict(row or {}).items()}
+
     return {
-        "time_range_minutes": time_range,
-        "counts": dict(row) if row else {},
-        "top_event_types": [{"type": r.event_type, "count": r.count} for r in by_type.fetchall()],
+        "time_range_minutes": minutes,
+        "counts": counts,
+        "top_event_types": [{"type": r.event_type, "count": r.count} for r in type_rows],
+        "event_type_distribution": [
+            {"name": r.event_type or "unknown", "value": int(r.count or 0)} for r in type_rows
+        ],
+        "severity_trend": [
+            {
+                "bucket": item["bucket"].isoformat() if item["bucket"] else None,
+                "CRITICAL": int(item["critical"] or 0),
+                "HIGH": int(item["high"] or 0),
+                "MEDIUM": int(item["medium"] or 0),
+                "LOW": int(item["low"] or 0),
+                "INFO": int(item["info"] or 0),
+                "total": int(item["total"] or 0),
+            }
+            for item in trend.mappings().all()
+        ],
     }
 
 
@@ -321,16 +497,3 @@ async def update_triage_fields(
 
     await db.commit()
     return {"status": "updated", "event_id": str(event_id), "updated_by": current_user["username"]}
-
-
-def _row_to_dict(row) -> dict:
-    data = dict(row)
-    for key, value in data.items():
-        if isinstance(value, datetime):
-            data[key] = value.isoformat()
-        elif hasattr(value, "__str__") and not isinstance(
-            value,
-            (str, int, float, bool, list, dict, type(None)),
-        ):
-            data[key] = str(value)
-    return data
