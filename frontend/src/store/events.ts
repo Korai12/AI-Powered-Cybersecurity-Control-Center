@@ -187,51 +187,57 @@ function upsertIntoFeed(feed: LiveEventItem[], incoming: LiveEventItem): LiveEve
   return trimFeed(sortFeed(next))
 }
 
-function eventFromLiveMessage(message: LiveEventMessage | Record<string, unknown>): LiveEventItem | null {
-  const eventId = normalizeString(message.event_id ?? message.id)
+function eventFromLiveMessage(
+  message: LiveEventMessage | EventRecord | Record<string, unknown>,
+): LiveEventItem | null {
+  const raw = message as Record<string, unknown>
+
+  const eventId = normalizeString(raw['event_id'] ?? raw['id'])
   if (!eventId) {
     return null
   }
 
   const receivedAt =
-    normalizeString(message.published_at) ||
-    normalizeString(message.received_at) ||
+    normalizeString(raw['published_at']) ||
+    normalizeString(raw['received_at']) ||
     new Date().toISOString()
 
   return toLiveEventItem(
     {
       id: eventId,
-      timestamp: normalizeString(message.timestamp) ?? null,
-      ingested_at: normalizeString(message.ingested_at) ?? null,
-      source_identifier: normalizeString(message.source_identifier) ?? null,
-      event_type: normalizeString(message.event_type) ?? null,
-      severity: normalizeSeverity(normalizeString(message.severity)) ?? null,
-      src_ip: normalizeString(message.src_ip) ?? null,
-      dst_ip: normalizeString(message.dst_ip) ?? null,
-      username: normalizeString(message.username) ?? null,
-      hostname: normalizeString(message.hostname) ?? null,
-      geo_country: normalizeString(message.geo_country) ?? null,
-      geo_city: normalizeString(message.geo_city) ?? null,
-      geo_lat: normalizeNumber(message.geo_lat) ?? null,
-      geo_lon: normalizeNumber(message.geo_lon) ?? null,
-      abuse_score: normalizeNumber(message.abuse_score) ?? null,
-      severity_score: normalizeNumber(message.severity_score) ?? null,
-      triage_status: normalizeString(message.triage_status) ?? null,
-      ai_triage_notes: normalizeString(message.ai_triage_notes) ?? null,
-      incident_id: normalizeString(message.incident_id) ?? null,
-      relevant_cves: Array.isArray(message.relevant_cves)
-        ? message.relevant_cves.map((item) => String(item))
+      timestamp: normalizeString(raw['timestamp']) ?? null,
+      ingested_at: normalizeString(raw['ingested_at']) ?? null,
+      source_identifier: normalizeString(raw['source_identifier']) ?? null,
+      event_type: normalizeString(raw['event_type']) ?? null,
+      severity: normalizeSeverity(normalizeString(raw['severity'])) ?? null,
+      src_ip: normalizeString(raw['src_ip']) ?? null,
+      dst_ip: normalizeString(raw['dst_ip']) ?? null,
+      username: normalizeString(raw['username']) ?? null,
+      hostname: normalizeString(raw['hostname']) ?? null,
+      geo_country: normalizeString(raw['geo_country']) ?? null,
+      geo_city: normalizeString(raw['geo_city']) ?? null,
+      geo_lat: normalizeNumber(raw['geo_lat']) ?? null,
+      geo_lon: normalizeNumber(raw['geo_lon']) ?? null,
+      abuse_score: normalizeNumber(raw['abuse_score']) ?? null,
+      severity_score: normalizeNumber(raw['severity_score']) ?? null,
+      triage_status: normalizeString(raw['triage_status']) ?? null,
+      ai_triage_notes: normalizeString(raw['ai_triage_notes']) ?? null,
+      incident_id: normalizeString(raw['incident_id']) ?? null,
+      relevant_cves: Array.isArray(raw['relevant_cves'])
+        ? raw['relevant_cves'].map((item) => String(item))
         : [],
-      tags: Array.isArray(message.tags) ? message.tags.map((item) => String(item)) : [],
+      tags: Array.isArray(raw['tags'])
+        ? raw['tags'].map((item) => String(item))
+        : [],
     },
     {
       receivedAt,
-      updateType: normalizeString(message.update_type),
+      updateType: normalizeString(raw['update_type']),
       isPlaceholder:
-        !('raw_log' in message) &&
-        !('geo_country' in message) &&
-        !('abuse_score' in message) &&
-        !('severity_score' in message),
+        !('raw_log' in raw) &&
+        !('geo_country' in raw) &&
+        !('abuse_score' in raw) &&
+        !('severity_score' in raw),
       flash: true,
     },
   )
