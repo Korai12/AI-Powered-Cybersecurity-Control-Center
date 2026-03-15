@@ -269,3 +269,22 @@ def downgrade() -> None:
               'hunt_results', 'response_actions', 'assets',
               'events', 'incidents', 'users']:
         op.execute(f"DROP TABLE IF EXISTS {t} CASCADE")
+#phase 6 
+    # 6. hunt_results — patched Phase 6 schema (F-14 / G-03)
+    op.execute("""
+    CREATE TABLE IF NOT EXISTS hunt_results (
+        id                 UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+        hunt_id            UUID         NOT NULL,
+        hypothesis         TEXT         NOT NULL,
+        triggered_by       VARCHAR(20)  NOT NULL DEFAULT 'scheduled',
+        analyst_id         UUID REFERENCES users(id) ON DELETE SET NULL,
+        started_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+        completed_at       TIMESTAMPTZ,
+        status             VARCHAR(20)  NOT NULL DEFAULT 'running',
+        events_examined    INTEGER      NOT NULL DEFAULT 0,
+        findings_count     INTEGER      NOT NULL DEFAULT 0,
+        findings           JSONB        NOT NULL DEFAULT '[]',
+        ai_narrative       TEXT,
+        technique_coverage TEXT[]       NOT NULL DEFAULT '{}',
+        react_transcript   JSONB        NOT NULL DEFAULT '[]'
+    )""")

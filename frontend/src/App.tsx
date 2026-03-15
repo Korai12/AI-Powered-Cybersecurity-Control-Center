@@ -1,9 +1,55 @@
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
-
+import ActionsPage from '@/pages/ActionsPage'
 import Layout from '@/components/Layout'
 import { useAuth } from '@/hooks/useAuth'
 import DashboardPage from '@/pages/DashboardPage'
 import LoginPage from '@/pages/LoginPage'
+//Phase 5.4 
+import IncidentDetailPage from '@/pages/IncidentDetailPage'
+import HuntPage from '@/pages/HuntPage'
+
+//Phase 6 
+import MITREPage from '@/pages/MITRE'
+const ROLE_LEVELS: Record<string, number> = {
+  analyst: 0,
+  senior_analyst: 1,
+  soc_manager: 2,
+}
+
+function hasMinRole(role: string | null, minimumRole: string) {
+  if (!role) return false
+  return (ROLE_LEVELS[role] ?? -1) >= (ROLE_LEVELS[minimumRole] ?? 0)
+}
+
+function RequireMinimumRole({
+  minimumRole,
+  children,
+}: {
+  minimumRole: 'analyst' | 'senior_analyst' | 'soc_manager'
+  children: React.ReactNode
+}) {
+  const { isBootstrapping, role } = useAuth()
+
+  if (isBootstrapping) {
+    return (
+      <FullScreenStatus
+        title="Checking permissions"
+        message="Validating the analyst role for this workspace."
+      />
+    )
+  }
+
+  if (!hasMinRole(role, minimumRole)) {
+    return (
+      <FullScreenStatus
+        title="Access denied"
+        message={`This page requires ${minimumRole} or higher.`}
+      />
+    )
+  }
+
+  return <>{children}</>
+}
 
 function FullScreenStatus({
   title,
@@ -125,7 +171,7 @@ export default function App() {
               />
             }
           />
-
+          <Route path="/incidents/:incidentId" element={<IncidentDetailPage />} />
           <Route
             path="/chat"
             element={
@@ -139,30 +185,21 @@ export default function App() {
           <Route
             path="/hunt"
             element={
-              <PlaceholderPage
-                title="Threat Hunting Workspace"
-                description="Threat hunting remains part of the formal ACCC route map. The dashboard and authentication shell are implemented now, while the dedicated hunt workspace can be layered in later without reworking router structure."
-              />
+              <Route path="/hunt" element={<HuntPage />} />
             }
           />
 
           <Route
             path="/mitre"
             element={
-              <PlaceholderPage
-                title="MITRE ATT&CK Heatmap"
-                description="This placeholder preserves the future MITRE visualization route documented in the project plan while keeping the Phase 4 router complete and stable."
-              />
+              <Route path="/mitre" element={<MITREPage />} />
             }
           />
 
           <Route
             path="/actions"
             element={
-              <PlaceholderPage
-                title="Response Actions Queue"
-                description="The response action workflow belongs to later phases. The route stays active now so the frontend shell reflects the full SOC navigation model from the project documentation."
-              />
+              <Route path="/actions" element={<ActionsPage />} />
             }
           />
 
@@ -189,10 +226,17 @@ export default function App() {
           <Route
             path="/ciso"
             element={
-              <PlaceholderPage
-                title="Executive CISO View"
-                description="The executive summary route remains part of the documented frontend structure, even though the primary Phase 4 work focuses on the analyst dashboard."
-              />
+              <Route
+  path="/ciso"
+  element={
+    <RequireMinimumRole minimumRole="soc_manager">
+      <PlaceholderPage
+        title="Executive CISO View"
+        description="The executive summary route remains part of the documented frontend structure and is reserved for the SOC Manager role."
+      />
+    </RequireMinimumRole>
+  }
+/>
             }
           />
 
@@ -211,4 +255,5 @@ export default function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
+  
 }

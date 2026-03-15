@@ -275,11 +275,11 @@ async def start_scheduler() -> None:
         id="alert_triage",
         replace_existing=True,
         misfire_grace_time=10,
-    )
+    )#changed minute 2 to 5 bcs of phase 5.1
     _scheduler.add_job(
         job_correlation_engine,
-        IntervalTrigger(minutes=2),
-        id="correlation_pass",
+        IntervalTrigger(minutes=5),
+        id="incident_correlation",
         replace_existing=True,
         misfire_grace_time=30,
     )
@@ -332,3 +332,165 @@ async def stop_scheduler() -> None:
     if _scheduler.running:
         _scheduler.shutdown(wait=False)
         logger.info("APScheduler stopped")
+
+        from __future__ import annotations
+
+import logging
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+
+from services.ai.hunt import run_scheduled_hunt
+
+logger = logging.getLogger("accc.scheduler")
+
+_scheduler: AsyncIOScheduler | None = None
+
+
+async def baseline_refresh_job() -> None:
+    logger.info("Running baseline_refresh job")
+    return None
+
+
+async def incident_correlation_job() -> None:
+    logger.info("Running incident_correlation job")
+    return None
+
+
+async def posture_score_job() -> None:
+    logger.info("Running posture_score job")
+    return None
+
+
+async def entity_graph_build_job() -> None:
+    logger.info("Running entity_graph_build job")
+    return None
+
+
+async def cleanup_old_cache_job() -> None:
+    logger.info("Running cleanup_old_cache job")
+    return None
+
+
+async def hunt_scheduled_1_job() -> None:
+    logger.info("Running hunt_scheduled_1")
+    await run_scheduled_hunt("Detect lateral movement patterns")
+
+
+async def hunt_scheduled_2_job() -> None:
+    logger.info("Running hunt_scheduled_2")
+    await run_scheduled_hunt("Identify brute force credential attacks")
+
+
+async def hunt_scheduled_3_job() -> None:
+    logger.info("Running hunt_scheduled_3")
+    await run_scheduled_hunt("Find data exfiltration indicators")
+
+
+def _build_scheduler() -> AsyncIOScheduler:
+    scheduler = AsyncIOScheduler()
+
+    scheduler.add_job(
+        hunt_scheduled_1_job,
+        trigger=IntervalTrigger(minutes=30),
+        id="hunt_scheduled_1",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        hunt_scheduled_2_job,
+        trigger=IntervalTrigger(minutes=60),
+        id="hunt_scheduled_2",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        hunt_scheduled_3_job,
+        trigger=IntervalTrigger(hours=2),
+        id="hunt_scheduled_3",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    scheduler.add_job(
+        baseline_refresh_job,
+        trigger=IntervalTrigger(minutes=15),
+        id="baseline_refresh",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        incident_correlation_job,
+        trigger=IntervalTrigger(minutes=5),
+        id="incident_correlation",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        posture_score_job,
+        trigger=IntervalTrigger(minutes=10),
+        id="posture_score",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        entity_graph_build_job,
+        trigger=IntervalTrigger(minutes=10),
+        id="entity_graph_build",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        cleanup_old_cache_job,
+        trigger=IntervalTrigger(hours=24),
+        id="cleanup_old_cache",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    return scheduler
+
+
+async def start_scheduler():
+    global _scheduler
+
+    if _scheduler and _scheduler.running:
+        return _scheduler
+
+    _scheduler = _build_scheduler()
+    _scheduler.start()
+    logger.info("APScheduler started with %d jobs", len(_scheduler.get_jobs()))
+    return _scheduler
+
+
+async def stop_scheduler():
+    global _scheduler
+
+    if _scheduler and _scheduler.running:
+        _scheduler.shutdown(wait=False)
+        logger.info("APScheduler stopped")
+
+    _scheduler = None
+
+
+def get_registered_jobs():
+    if not _scheduler:
+        return []
+
+    jobs = []
+    for job in _scheduler.get_jobs():
+        jobs.append(
+            {
+                "id": job.id,
+                "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
+            }
+        )
+    return jobs

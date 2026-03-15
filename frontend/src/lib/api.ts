@@ -505,6 +505,382 @@ export function getAgentWebSocketUrl(runId: string, token?: string | null): stri
 export function getHuntWebSocketUrl(huntId: string, token?: string | null): string {
   return buildWebSocketUrl(`/ws/hunt/${huntId}`, token)
 }
+//PHASE 5.4 UPDATE 
+export interface IncidentRecord {
+  id: string
+  title: string
+  description?: string | null
+  severity: string
+  status: string
+  created_at?: string | null
+  updated_at?: string | null
+  resolved_at?: string | null
+  assigned_to?: string | null
+  event_count?: number
+  affected_assets?: string[]
+  affected_users?: string[]
+  ioc_ips?: string[]
+  ioc_domains?: string[]
+  ioc_hashes?: string[]
+  mitre_tactics?: string[]
+  mitre_techniques?: string[]
+  kill_chain_stage?: string | null
+  attack_type?: string | null
+  ai_summary?: string | null
+  ai_recommendations?: Array<{
+    priority?: string
+    action?: string
+    rationale?: string
+    timeframe?: string
+  }>
+  confidence_score?: number | null
+  false_positive_probability?: number | null
+  report_generated_at?: string | null
+}
+
+export interface IncidentDetailResponse extends IncidentRecord {
+  events: EventRecord[]
+  timeline_ref?: string
+  report_ref?: string
+}
+
+export interface IncidentTimelineNode {
+  id: string
+  position: { x: number; y: number }
+  data: {
+    label: string
+    timestamp?: string | null
+    severity?: string | null
+    mitre_tactic?: string | null
+    mitre_technique?: string | null
+    kill_chain_stage?: string | null
+    event: EventRecord
+  }
+}
+
+export interface IncidentTimelineEdge {
+  id: string
+  source: string
+  target: string
+  animated?: boolean
+}
+
+export interface IncidentTimelineResponse {
+  incident_id: string
+  incident_title: string
+  kill_chain_stage?: string | null
+  nodes: IncidentTimelineNode[]
+  edges: IncidentTimelineEdge[]
+  event_count: number
+}
+
+export interface IncidentReportResponse {
+  incident_id: string
+  title: string
+  severity: string
+  status: string
+  event_count: number
+  report: string
+  report_generated_at?: string | null
+}
+//Phase 5.4 Otherwise TypeScript may complain because request(...) is generic and should be told what it returns
+export async function getIncident(incidentId: string): Promise<IncidentDetailResponse> {
+  return request<IncidentDetailResponse>(`/api/v1/incidents/${incidentId}`, {}, { auth: true })
+}
+
+export async function getIncidentTimeline(
+  incidentId: string,
+): Promise<IncidentTimelineResponse> {
+  return request<IncidentTimelineResponse>(`/api/v1/incidents/${incidentId}/timeline`, {}, { auth: true })
+}
+
+export async function getIncidentReport(
+  incidentId: string,
+): Promise<IncidentReportResponse> {
+  return request<IncidentReportResponse>(`/api/v1/incidents/${incidentId}/report`, {}, { auth: true })
+}
+/* Phase 5.4
+export async function getIncident(incidentId: string): Promise<IncidentDetailResponse> {
+  return request(`/api/v1/incidents/${incidentId}`, {}, { auth: true })
+}
+
+export async function getIncidentTimeline(
+  incidentId: string,
+): Promise<IncidentTimelineResponse> {
+  return request(`/api/v1/incidents/${incidentId}/timeline`, {}, { auth: true })
+}
+
+export async function getIncidentReport(
+  incidentId: string,
+): Promise<IncidentReportResponse> {
+  return request(`/api/v1/incidents/${incidentId}/report`, {}, { auth: true })
+}
+  */
+/*Phase 5.4  added 
+ getIncident,
+   getIncidentTimeline,
+  getIncidentReport,
+  */
+ export interface DeepInvestigateRequest {
+  analyst_query: string
+}
+
+export interface DeepInvestigateResponse {
+  run_id: string
+  status: string
+  message: string
+}
+
+export async function startDeepInvestigate(
+  incidentId: string,
+  payload: DeepInvestigateRequest,
+): Promise<DeepInvestigateResponse> {
+  return request<DeepInvestigateResponse>(
+    `/api/v1/incidents/${incidentId}/deep-investigate`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    { auth: true },
+  )
+}
+export interface HuntRunRequest {
+  hypothesis: string
+  lookback_hours?: number
+}
+
+export interface HuntRunResponse {
+  hunt_id: string
+  status: string
+  message: string
+}
+
+export interface HuntFinding {
+  severity: string
+  description: string
+  event_ids: string[]
+  confidence: number
+}
+
+export interface HuntResultRecord {
+  id: string
+  hunt_id: string
+  hypothesis: string
+  triggered_by: string
+  analyst_id?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+  status: string
+  events_examined: number
+  findings_count: number
+  findings: HuntFinding[]
+  ai_narrative?: string | null
+  technique_coverage: string[]
+  react_transcript: unknown[]
+}
+
+export interface HuntResultsResponse {
+  items: HuntResultRecord[]
+  count: number
+  limit: number
+  offset: number
+}
+
+export interface HuntJobsResponse {
+  jobs: Array<{
+    id: string
+    next_run_time?: string | null
+  }>
+}
+
+export async function runHunt(
+  payload: HuntRunRequest,
+): Promise<HuntRunResponse> {
+  return request<HuntRunResponse>(
+    '/api/v1/hunt/run',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    { auth: true },
+  )
+}
+
+export async function listHuntResults(
+  params: {
+    status?: string
+    triggered_by?: string
+    limit?: number
+    offset?: number
+  } = {},
+): Promise<HuntResultsResponse> {
+  const query = makeQueryString(params)
+  return request<HuntResultsResponse>(`/api/v1/hunt/results${query}`, {}, { auth: true })
+}
+
+export async function getHuntResult(huntId: string): Promise<HuntResultRecord> {
+  return request<HuntResultRecord>(`/api/v1/hunt/results/${huntId}`, {}, { auth: true })
+}
+
+export async function getHuntJobs(): Promise<HuntJobsResponse> {
+  return request<HuntJobsResponse>('/api/v1/hunt/jobs', {}, { auth: true })
+}
+
+export interface ResponseActionRecord {
+  id: string
+  incident_id: string
+  action_type: string
+  action_params: Record<string, unknown>
+  risk_level: 'LOW' | 'MEDIUM' | 'HIGH'
+  status: 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'rolled_back' | 'vetoed'
+  created_by: 'ai' | 'analyst'
+  requested_by?: string | null
+  approved_by?: string | null
+  created_at?: string | null
+  approved_at?: string | null
+  executed_at?: string | null
+  completed_at?: string | null
+  veto_deadline?: string | null
+  result?: string | null
+  rollback_available: boolean
+  rolled_back_at?: string | null
+  simulation_mode: boolean
+  audit_log: Array<{
+    timestamp: string
+    event: string
+    actor?: string | null
+    details?: Record<string, unknown>
+  }>
+}
+
+export interface ActionsListResponse {
+  items: ResponseActionRecord[]
+  count: number
+  limit: number
+  offset: number
+}
+
+export interface CreateActionRequest {
+  incident_id: string
+  action_type: string
+  action_params: Record<string, unknown>
+  created_by?: 'ai' | 'analyst'
+}
+
+export async function listActions(
+  params: {
+    status?: string
+    risk_level?: string
+    incident_id?: string
+    limit?: number
+    offset?: number
+  } = {},
+): Promise<ActionsListResponse> {
+  const query = makeQueryString(params)
+  return request<ActionsListResponse>(`/api/v1/actions${query}`, {}, { auth: true })
+}
+
+export async function createAction(
+  payload: CreateActionRequest,
+): Promise<ResponseActionRecord> {
+  return request<ResponseActionRecord>(
+    '/api/v1/actions',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    { auth: true },
+  )
+}
+
+export async function approveAction(actionId: string): Promise<ResponseActionRecord> {
+  return request<ResponseActionRecord>(
+    `/api/v1/actions/${actionId}/approve`,
+    { method: 'POST' },
+    { auth: true },
+  )
+}
+
+export async function vetoAction(actionId: string): Promise<ResponseActionRecord> {
+  return request<ResponseActionRecord>(
+    `/api/v1/actions/${actionId}/veto`,
+    { method: 'POST' },
+    { auth: true },
+  )
+}
+
+export async function rollbackAction(actionId: string): Promise<ResponseActionRecord> {
+  return request<ResponseActionRecord>(
+    `/api/v1/actions/${actionId}/rollback`,
+    { method: 'POST' },
+    { auth: true },
+  )
+}
+
+export interface MitreHeatmapEventRecord {
+  id: string
+  timestamp?: string | null
+  event_type?: string | null
+  severity?: string | null
+  hostname?: string | null
+  username?: string | null
+  src_ip?: string | null
+  dst_ip?: string | null
+  rule_id?: string | null
+  incident_id?: string | null
+  mitre_tactic?: string | null
+  mitre_technique?: string | null
+}
+
+export interface MitreHeatmapCell {
+  technique_id: string
+  name: string
+  tactic: string
+  description: string
+  detection: string
+  detection_count: number
+  coverage_gap: boolean
+  events: MitreHeatmapEventRecord[]
+}
+
+export interface MitreHeatmapResponse {
+  generated_at: string
+  catalog_source: string
+  total_techniques: number
+  coverage_gap_count: number
+  covered_techniques: number
+  max_detection_count: number
+  tactics: string[]
+  cells: MitreHeatmapCell[]
+}
+
+export async function getMitreHeatmap(): Promise<MitreHeatmapResponse> {
+  return request<MitreHeatmapResponse>('/api/v1/mitre/heatmap', {}, { auth: true })
+}
+
+export interface ChatMessageRequest {
+  query: string
+  session_id: string
+}
+
+export interface ChatMessageResponse {
+  session_id: string
+  status?: string
+  message?: string
+}
+
+export async function sendChatMessage(
+  payload: ChatMessageRequest,
+): Promise<ChatMessageResponse> {
+  return request<ChatMessageResponse>(
+    '/api/v1/chat/message',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    { auth: true },
+  )
+}
 
 export const api = {
   login,
@@ -520,8 +896,23 @@ export const api = {
   ingestEventBatch,
   uploadEventsFile,
   updateEventTriage,
+  getIncident,
+  getIncidentTimeline,
+  getIncidentReport,
   getEventsWebSocketUrl,
   getChatWebSocketUrl,
   getAgentWebSocketUrl,
   getHuntWebSocketUrl,
+  startDeepInvestigate,
+  runHunt,
+  listHuntResults,
+  getHuntResult,
+  getHuntJobs,
+  listActions,
+  createAction,
+  approveAction,
+  vetoAction,
+  rollbackAction,
+  getMitreHeatmap,
+  sendChatMessage,
 }

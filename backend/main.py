@@ -9,7 +9,8 @@ Entry point for the FastAPI application. Manages:
     - Health endpoint with dependency status
     - 4 WebSocket endpoints (G-02)
 """
-
+from api.actions import router as actions_router
+from api.hunt import router as hunt_router
 import asyncio
 import json
 import logging
@@ -19,20 +20,24 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+from api.assets import router as assets_router
 
 from config import settings
 from database import get_db, engine
 from scheduler import start_scheduler, stop_scheduler, get_registered_jobs
 from websocket.manager import manager as ws_manager
 from websocket.redis_bridge import start_redis_bridge
-
+from api.mitre import router as mitre_router
 # --- API Routers ---
+
 from api.auth import router as auth_router
 from api.events import router as events_router
 from api.simulate import router as simulate_router
 from api.chat import router as chat_router
 from api.intel import router as intel_router
 from api.dashboard import router as dashboard_router
+#Phase 5.5 
+from api.incidents import router as incidents_router
 
 # Optional: import for WS auth
 from api.dependencies import get_current_user_ws
@@ -126,14 +131,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
+app.include_router(hunt_router, prefix="/api/v1")
 # ══════════════════════════════════════════════════════════
 # Router Registration
 # ══════════════════════════════════════════════════════════
 
 # Auth routes — no /api/v1 prefix (per architecture spec)
 app.include_router(auth_router, prefix="")
-
+app.include_router(actions_router, prefix="/api/v1")
 # API routes — /api/v1 prefix - Phase 2.4 
 app.include_router(events_router, prefix="/api/v1")
 app.include_router(simulate_router, prefix="/api/v1")
@@ -142,10 +147,14 @@ app.include_router(intel_router, prefix="/api/v1")
 app.include_router(dashboard_router, prefix="/api/v1")
 # Phase 3+ will add: incidents_router, hunt_router, actions_router, etc.
 
-
+#Phase 5.5 
+app.include_router(incidents_router, prefix="/api/v1")
 # ══════════════════════════════════════════════════════════
 # Health Endpoint
 # ══════════════════════════════════════════════════════════
+#phase 6 
+app.include_router(mitre_router, prefix="/api/v1")
+app.include_router(assets_router, prefix="/api/v1")
 
 @app.get("/health", tags=["System"])
 async def health_check():
@@ -293,6 +302,7 @@ async def ws_chat(
         ws_manager.disconnect(websocket, channel)
 
 
+
 @app.websocket("/ws/agent/{run_id}")
 async def ws_agent(
     websocket: WebSocket,
@@ -300,9 +310,8 @@ async def ws_agent(
     token: str = Query(default=""),
 ):
     """
-    Per-investigation ReAct agent step streaming (Phase 6).
-    Streams each think/act/observe step live.
-    STUB — accepts connections but only sends connected message.
+    Per-investigation ReAct agent step streaming.
+    Auth: JWT token as ?token=<jwt> query parameter.
     """
     async with async_session_factory() as session:
         user = await get_current_user_ws(token, session)
@@ -318,8 +327,9 @@ async def ws_agent(
             "type": "connected",
             "channel": channel,
             "run_id": run_id,
-            "status": "stub — full implementation in Phase 6",
+            "user": user["username"],
         })
+
         while True:
             data = await websocket.receive_text()
             try:
@@ -330,9 +340,9 @@ async def ws_agent(
                 pass
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, channel)
-    except Exception:
+    except Exception as e:
+        logger.error(f"WS agent error: {e}")
         ws_manager.disconnect(websocket, channel)
-
 
 @app.websocket("/ws/hunt/{hunt_id}")
 async def ws_hunt(
@@ -341,9 +351,8 @@ async def ws_hunt(
     token: str = Query(default=""),
 ):
     """
-    Per-hunt progress streaming (Phase 6).
+    Per-hunt progress streaming (Phase 6.2).
     Streams hunt progress steps as they complete.
-    STUB — accepts connections but only sends connected message.
     """
     async with async_session_factory() as session:
         user = await get_current_user_ws(token, session)
@@ -359,7 +368,7 @@ async def ws_hunt(
             "type": "connected",
             "channel": channel,
             "hunt_id": hunt_id,
-            "status": "stub — full implementation in Phase 6",
+            "user": user["username"],
         })
         while True:
             data = await websocket.receive_text()
@@ -371,5 +380,6 @@ async def ws_hunt(
                 pass
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket, channel)
-    except Exception:
+    except Exception as e:
+        logger.error(f"WS hunt error: {e}")
         ws_manager.disconnect(websocket, channel)

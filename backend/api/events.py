@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from api.dependencies import get_current_user, assert_can_triage_alerts
 import json
 import logging
 from datetime import datetime
